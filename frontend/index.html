@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>La Rose · Gestão de Boletos</title>
+
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#e8566a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="La Rose" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:     #0d0d0f;
+      --s1:     #141418;
+      --s2:     #1c1c22;
+      --bd:     rgba(255,255,255,.07);
+      --bdh:    rgba(255,255,255,.13);
+      --rose:   #e8566a;
+      --rose-d: #c8384d;
+      --rose-g: rgba(232,86,106,.18);
+      --gold:   #d4a853;
+      --txt:    #e8e4df;
+      --muted:  #7a7585;
+      --dim:    #3e3a4a;
+      --pend:   #e8566a;
+      --env:    #d4a853;
+      --pago:   #4caf82;
+      --venc:   #9b6ee8;
+      --r:      12px;
+      --sh:     0 4px 24px rgba(0,0,0,.5);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--txt); min-height: 100vh; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--rose); border-radius: 99px; }
+
+    /* HEADER */
+    .hdr { position: sticky; top: 0; z-index: 50; background: rgba(13,13,15,.9); backdrop-filter: blur(14px); border-bottom: 1px solid var(--bd); padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+    .logo { font-family: 'Cormorant Garamond', serif; font-size: 1.85rem; font-weight: 700; color: #fff; letter-spacing: -.03em; }
+    .logo span { color: var(--rose); }
+    .logo-tag { font-size: .62rem; font-weight: 700; background: var(--rose-g); color: var(--rose); border: 1px solid rgba(232,86,106,.25); padding: .18rem .55rem; border-radius: 99px; text-transform: uppercase; letter-spacing: .1em; }
+    .hdr-r { margin-left: auto; display: flex; align-items: center; gap: 1.4rem; }
+    .ip-box { font-family: 'IBM Plex Mono', monospace; font-size: .7rem; color: var(--muted); background: var(--s2); padding: .28rem .7rem; border-radius: 6px; border: 1px solid var(--bd); }
+    .ocr-st { display: flex; align-items: center; gap: .45rem; font-size: .74rem; color: var(--muted); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+    .dot.ativo { background: var(--pago); box-shadow: 0 0 7px var(--pago); }
+    .dot.sim   { background: var(--env);  box-shadow: 0 0 7px var(--env);  }
+
+    /* ABAS */
+    .nav-abas { display: flex; border-bottom: 1px solid var(--bd); padding: 0 2rem; background: var(--s1); overflow-x: auto; }
+    .aba { padding: .85rem 1.4rem; font-size: .85rem; font-weight: 500; color: var(--muted); border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .2s; font-family: 'Outfit', sans-serif; white-space: nowrap; }
+    .aba:hover { color: var(--txt); }
+    .aba.ativa { color: var(--rose); border-bottom-color: var(--rose); }
+    .aba-badge { font-size: .62rem; background: var(--rose-g); color: var(--rose); padding: .1rem .45rem; border-radius: 99px; margin-left: .4rem; }
+
+    /* PÁGINAS */
+    .pagina { display: none; }
+    .pagina.ativa { display: block; }
+    .main { max-width: 1080px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    /* ACTION BAR */
+    .abar { display: flex; align-items: center; gap: .7rem; margin-bottom: 1.75rem; flex-wrap: wrap; }
+    .fgrp { display: flex; background: var(--s1); border: 1px solid var(--bd); border-radius: var(--r); padding: .28rem; gap: .2rem; }
+    .fbtn { padding: .36rem 1rem; border-radius: 8px; font-size: .78rem; font-weight: 500; border: none; cursor: pointer; color: var(--muted); background: transparent; transition: all .18s; font-family: 'Outfit', sans-serif; }
+    .fbtn:hover { color: var(--txt); background: var(--s2); }
+    .fbtn.ativo { background: var(--rose); color: #fff; font-weight: 600; }
+    .busca-w { display: flex; align-items: center; background: var(--s1); border: 1px solid var(--bd); border-radius: var(--r); padding: .38rem .85rem; gap: .45rem; transition: border .2s; }
+    .busca-w:focus-within { border-color: var(--rose); }
+    .busca-w input { background: transparent; border: none; outline: none; color: var(--txt); font-family: 'Outfit', sans-serif; font-size: .84rem; width: 175px; }
+    .busca-w input::placeholder { color: var(--dim); }
+
+    /* BOTÕES */
+    .btn-novo { margin-left: auto; display: flex; align-items: center; gap: .45rem; background: var(--rose); color: #fff; padding: .52rem 1.35rem; border-radius: var(--r); border: none; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: .85rem; font-weight: 600; transition: all .2s; box-shadow: 0 2px 14px var(--rose-g); }
+    .btn-novo:hover { background: var(--rose-d); transform: translateY(-1px); }
+    .btn-pri { display: flex; align-items: center; gap: .4rem; background: var(--rose); color: #fff; padding: .52rem 1.35rem; border-radius: 9px; border: none; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: .85rem; font-weight: 600; transition: all .2s; }
+    .btn-pri:hover { background: var(--rose-d); }
+    .btn-pri:disabled { opacity: .6; cursor: not-allowed; }
+    .btn-sec { padding: .48rem 1.15rem; background: transparent; border: 1px solid var(--bd); border-radius: 9px; color: var(--muted); font-family: 'Outfit', sans-serif; font-size: .84rem; font-weight: 500; cursor: pointer; transition: all .15s; }
+    .btn-sec:hover { border-color: var(--bdh); color: var(--txt); }
+    .btn-verde { display: flex; align-items: center; gap: .4rem; background: rgba(76,175,130,.15); color: var(--pago); border: 1px solid rgba(76,175,130,.3); padding: .52rem 1.2rem; border-radius: 9px; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: .85rem; font-weight: 600; transition: all .2s; }
+    .btn-verde:hover { background: rgba(76,175,130,.25); }
+
+    /* STATS */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 1rem; margin-bottom: 1.75rem; }
+    .sc { background: var(--s1); border: 1px solid var(--bd); border-radius: var(--r); padding: .95rem 1.15rem; }
+    .sc-lbl { font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin-bottom: .3rem; }
+    .sc-val { font-family: 'Cormorant Garamond', serif; font-size: 1.85rem; font-weight: 700; line-height: 1; }
+    .sc-val.rose { color: var(--rose); }
+
+    /* CARDS BOLETO */
+    #grid { display: flex; flex-direction: column; gap: .72rem; }
+    .card { background: var(--s1); border: 1px solid var(--bd); border-left: 3.5px solid var(--bd); border-radius: var(--r); padding: 1.05rem 1.3rem; display: grid; grid-template-columns: 1fr auto; gap: .5rem 1.4rem; align-items: center; transition: all .2s; animation: fu .3s ease both; }
+    .card:hover { border-color: var(--bdh); box-shadow: var(--sh); transform: translateY(-1px); }
+    .card--pendente { border-left-color: var(--pend); }
+    .card--enviado  { border-left-color: var(--env);  }
+    .card--pago     { border-left-color: var(--pago); }
+    .card--vencido  { border-left-color: var(--venc); background: rgba(155,110,232,.04); }
+    .card.sk { pointer-events: none; animation: pulse 1.3s ease infinite; }
+    .sk-l { height: 11px; background: var(--s2); border-radius: 4px; margin-bottom: .55rem; }
+    .sk-70 { width: 70%; } .sk-40 { width: 40%; } .sk-90 { width: 90%; }
+    .card__corpo { display: flex; flex-direction: column; gap: .32rem; min-width: 0; }
+    .card__top { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; }
+    .card__nome { font-weight: 600; font-size: .94rem; }
+    .loja { font-size: .6rem; font-weight: 700; padding: .13rem .48rem; border-radius: 5px; text-transform: uppercase; letter-spacing: .06em; }
+    .loja--loja1 { background: rgba(96,165,250,.14); color: #60a5fa; }
+    .loja--loja2 { background: var(--rose-g); color: var(--rose); }
+    .urg { font-size: .63rem; font-weight: 700; padding: .1rem .42rem; border-radius: 5px; }
+    .urg.atrasado { background: rgba(155,110,232,.18); color: var(--venc); }
+    .urg.hoje     { background: rgba(232,86,106,.18);  color: var(--pend); }
+    .urg.urgente  { background: rgba(212,168,83,.18);  color: var(--env);  }
+    .urg.ok       { background: rgba(76,175,130,.14);  color: var(--pago); }
+    .card__meta { display: flex; gap: .9rem; font-size: .76rem; color: var(--muted); flex-wrap: wrap; }
+    .card__linha { font-family: 'IBM Plex Mono', monospace; font-size: .68rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card__lado { display: flex; flex-direction: column; align-items: flex-end; gap: .48rem; }
+    .card__valor { font-family: 'Cormorant Garamond', serif; font-size: 1.38rem; font-weight: 700; white-space: nowrap; }
+    .stag { font-size: .63rem; font-weight: 700; padding: .18rem .58rem; border-radius: 99px; text-transform: uppercase; letter-spacing: .07em; }
+    .stag--pendente { background: rgba(232,86,106,.14); color: var(--pend); }
+    .stag--enviado  { background: rgba(212,168,83,.14); color: var(--env);  }
+    .stag--pago     { background: rgba(76,175,130,.14); color: var(--pago); }
+    .stag--vencido  { background: rgba(155,110,232,.14);color: var(--venc); }
+    .card__acoes { display: flex; gap: .38rem; flex-wrap: wrap; justify-content: flex-end; }
+    .btn-act { font-size: .73rem; font-weight: 600; padding: .3rem .78rem; border-radius: 7px; border: 1px solid var(--bd); cursor: pointer; font-family: 'Outfit', sans-serif; transition: all .15s; }
+    .btn-act.primary { background: var(--rose); color: #fff; border-color: var(--rose); }
+    .btn-act.primary:hover { background: var(--rose-d); }
+    .btn-act.success { background: rgba(76,175,130,.14); color: var(--pago); border-color: rgba(76,175,130,.28); }
+    .btn-act.success:hover { background: rgba(76,175,130,.24); }
+    .btn-act.ghost { background: transparent; color: var(--dim); }
+    .btn-act.ghost:hover { color: var(--rose); border-color: var(--rose); }
+
+    /* HISTÓRICO */
+    #grid-historico { display: flex; flex-direction: column; gap: .72rem; }
+    .card-hist { background: var(--s1); border: 1px solid var(--bd); border-radius: var(--r); padding: 1.1rem 1.3rem; animation: fu .3s ease both; }
+    .card-hist:hover { border-color: var(--bdh); }
+    .ch-header { display: flex; align-items: center; gap: .8rem; margin-bottom: .85rem; flex-wrap: wrap; }
+    .ch-nome { font-weight: 600; font-size: .94rem; flex: 1; }
+    .ch-data { font-size: .74rem; color: var(--muted); }
+    .ch-pre { background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: .85rem 1rem; font-family: 'IBM Plex Mono', monospace; font-size: .72rem; color: var(--muted); line-height: 1.8; white-space: pre-wrap; word-break: break-all; }
+    .ch-acoes { display: flex; gap: .5rem; margin-top: .85rem; flex-wrap: wrap; }
+
+    /* WIZARD STEPS */
+    .steps { display: flex; margin-bottom: 1.2rem; border-bottom: 1px solid var(--bd); }
+    .step { flex: 1; padding: .75rem .5rem; text-align: center; font-size: .75rem; font-weight: 500; color: var(--dim); cursor: default; transition: all .2s; }
+    .step.ativo { color: var(--rose); border-bottom: 2px solid var(--rose); margin-bottom: -1px; }
+    .step.ok    { color: var(--pago); border-bottom: 2px solid var(--pago); margin-bottom: -1px; }
+    .step-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--s2); font-size: .7rem; margin-right: .35rem; transition: all .2s; }
+    .step.ativo .step-num { background: var(--rose); color: #fff; }
+    .step.ok    .step-num { background: var(--pago); color: #fff; }
+    .step-panel { display: none; flex-direction: column; gap: .95rem; }
+    .step-panel.ativo { display: flex; }
+
+    /* SELETOR DE FLUXO */
+    .fluxo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .fluxo-btn { padding: 1.1rem 1rem; background: var(--bg); border: 1.5px solid var(--bd); border-radius: var(--r); text-align: center; cursor: pointer; transition: all .2s; }
+    .fluxo-btn:hover { border-color: var(--rose); background: var(--rose-g); }
+    .fluxo-btn.selecionado { border-color: var(--rose); background: var(--rose-g); }
+    .fluxo-icon { font-size: 1.8rem; display: block; margin-bottom: .4rem; }
+    .fluxo-titulo { font-size: .85rem; font-weight: 600; color: var(--txt); margin-bottom: .25rem; }
+    .fluxo-desc { font-size: .74rem; color: var(--muted); line-height: 1.5; }
+
+    /* RESULT NFe */
+    .nfe-ok { background: rgba(76,175,130,.08); border: 1px solid rgba(76,175,130,.25); border-radius: var(--r); padding: .85rem 1rem; display: flex; flex-direction: column; gap: .35rem; }
+    .nfe-ok-loja { font-size: .9rem; font-weight: 600; color: var(--pago); }
+    .nfe-ok-chave { font-family: 'IBM Plex Mono', monospace; font-size: .66rem; color: var(--dim); word-break: break-all; }
+
+    /* FORM */
+    .fg2 { display: grid; grid-template-columns: 1fr 1fr; gap: .95rem; }
+    .fg { display: flex; flex-direction: column; gap: .38rem; }
+    .lbl { font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+    .inp { padding: .58rem .88rem; background: var(--bg); border: 1px solid var(--bd); border-radius: 9px; color: var(--txt); font-family: 'Outfit', sans-serif; font-size: .86rem; transition: border .15s; width: 100%; }
+    .inp:focus { outline: none; border-color: var(--rose); }
+    .inp.mono { font-family: 'IBM Plex Mono', monospace; font-size: .76rem; }
+    .hint { font-size: .7rem; color: var(--dim); }
+    .aviso  { background: rgba(212,168,83,.1);  border: 1px solid rgba(212,168,83,.28);  border-radius: 8px; padding: .65rem .95rem; font-size: .8rem; color: var(--env); }
+    .erro   { background: rgba(232,86,106,.1);  border: 1px solid rgba(232,86,106,.28);  border-radius: 8px; padding: .65rem .95rem; font-size: .8rem; color: var(--rose); }
+
+    /* DROPZONE */
+    .dz { border: 2px dashed var(--bd); border-radius: var(--r); padding: 2rem 1.5rem; text-align: center; cursor: pointer; transition: all .2s; }
+    .dz:hover, .dz.over { border-color: var(--rose); background: var(--rose-g); }
+    .dz__icon { font-size: 2.2rem; margin-bottom: .6rem; }
+    .dz__txt { font-size: .83rem; color: var(--muted); }
+    .dz__txt strong { color: var(--txt); }
+
+    /* EXPRESSO */
+    .exp-card { background: var(--bg); border: 1px solid var(--bd); border-radius: var(--r); padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: .6rem; }
+    .exp-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+    .exp-codigo { font-family: 'IBM Plex Mono', monospace; font-size: .82rem; color: var(--txt); line-height: 1.7; word-break: break-all; }
+    .exp-meta { font-size: .78rem; color: var(--muted); display: flex; gap: 1rem; flex-wrap: wrap; }
+
+    /* ESTADO VAZIO */
+    .vazio { text-align: center; padding: 4rem 2rem; color: var(--muted); }
+    .vazio__icon { font-size: 2.8rem; margin-bottom: .9rem; }
+    .vazio h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.35rem; color: var(--txt); margin-bottom: .4rem; }
+
+    /* MODAL */
+    .modal-ov { position: fixed; inset: 0; background: rgba(0,0,0,.78); backdrop-filter: blur(7px); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 1rem; opacity: 0; transition: opacity .22s; }
+    .modal-ov.vis { opacity: 1; }
+    .modal { background: var(--s1); border: 1px solid var(--bd); border-radius: 18px; width: 100%; max-width: 580px; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 64px rgba(0,0,0,.65); transform: translateY(18px); transition: transform .25s; }
+    .modal-ov.vis .modal { transform: translateY(0); }
+    .mhdr { padding: 1.35rem 1.75rem 1rem; border-bottom: 1px solid var(--bd); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--s1); z-index: 1; }
+    .mtitulo { font-family: 'Cormorant Garamond', serif; font-size: 1.28rem; font-weight: 700; }
+    .mclose { background: none; border: none; color: var(--muted); font-size: 1.3rem; cursor: pointer; padding: .2rem .45rem; border-radius: 6px; }
+    .mclose:hover { color: var(--rose); }
+    .mbody { padding: 1.35rem 1.75rem; display: flex; flex-direction: column; gap: .95rem; }
+
+    /* TOAST */
+    #toasts { position: fixed; bottom: 1.4rem; right: 1.4rem; z-index: 9999; display: flex; flex-direction: column; gap: .45rem; }
+    .toast { background: var(--s2); border: 1px solid var(--bd); color: var(--txt); padding: .75rem 1.15rem; border-radius: 10px; font-size: .83rem; min-width: 230px; box-shadow: var(--sh); transform: translateX(16px); opacity: 0; transition: all .25s; }
+    .toast.vis { transform: translateX(0); opacity: 1; }
+    .toast--sucesso { border-left: 3px solid var(--pago); }
+    .toast--erro    { border-left: 3px solid var(--pend); }
+    .toast--aviso   { border-left: 3px solid var(--env);  }
+    .toast--info    { border-left: 3px solid #60a5fa;     }
+
+    /* LOADING */
+    #loading { position: fixed; inset: 0; background: rgba(0,0,0,.82); backdrop-filter: blur(5px); z-index: 9998; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.1rem; }
+    .spin-g  { width: 46px; height: 46px; border: 3px solid rgba(255,255,255,.1); border-top-color: var(--rose); border-radius: 50%; animation: spin .8s linear infinite; }
+    .spin-sm { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: .3rem; }
+
+    @keyframes fu    { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    @keyframes spin  { to { transform:rotate(360deg); } }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+
+    @media (max-width:600px) {
+      .card { grid-template-columns:1fr; }
+      .card__lado { align-items:flex-start; flex-direction:row; flex-wrap:wrap; }
+      .fg2 { grid-template-columns:1fr; }
+      .hdr { padding:.8rem 1rem; }
+      .ip-box { display:none; }
+      .fluxo-grid { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="logo">La <span>Rose</span></div>
+  <span class="logo-tag">Boletos</span>
+  <div class="hdr-r">
+    <div class="ip-box" id="ip-display">localhost:8000</div>
+    <div class="ocr-st">
+      <div class="dot" id="dot"></div>
+      <span id="dot-lbl">Conectando...</span>
+    </div>
+  </div>
+</header>
+
+<!-- ABAS -->
+<nav class="nav-abas">
+  <button class="aba ativa" onclick="mudarAba('dashboard',this)">📊 Dashboard</button>
+  <button class="aba" onclick="mudarAba('historico',this)">
+    📋 Histórico <span class="aba-badge" id="badge-hist">0</span>
+  </button>
+  <button class="aba" onclick="mudarAba('expresso',this)">⚡ Código Rápido</button>
+</nav>
+
+
+<!-- ═══════════ ABA DASHBOARD ═══════════ -->
+<div class="pagina ativa" id="pag-dashboard">
+<main class="main">
+
+  <div class="abar">
+    <div class="fgrp">
+      <button class="fbtn ativo" data-g="fl" data-loja="todas" onclick="setLoja(this)">Todas</button>
+      <button class="fbtn" data-g="fl" data-loja="loja1" onclick="setLoja(this)">Loja 1</button>
+      <button class="fbtn" data-g="fl" data-loja="loja2" onclick="setLoja(this)">Loja 2</button>
+    </div>
+    <div class="fgrp">
+      <button class="fbtn ativo" data-g="fs" data-st="todos"    onclick="setStatus(this)">Todos</button>
+      <button class="fbtn" data-g="fs" data-st="PENDENTE" onclick="setStatus(this)">Pendentes</button>
+      <button class="fbtn" data-g="fs" data-st="ENVIADO"  onclick="setStatus(this)">Enviados</button>
+      <button class="fbtn" data-g="fs" data-st="PAGO"     onclick="setStatus(this)">Pagos</button>
+    </div>
+    <div class="busca-w">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--dim);flex-shrink:0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="busca" placeholder="Buscar fornecedor..."/>
+    </div>
+    <button class="btn-novo" onclick="abrirModal('mWizard')">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      + Novo Lançamento
+    </button>
+  </div>
+
+  <div class="stats">
+    <div class="sc"><div class="sc-lbl">Total</div><div class="sc-val" id="s-total">—</div></div>
+    <div class="sc"><div class="sc-lbl">Pendentes</div><div class="sc-val rose" id="s-pend">—</div></div>
+    <div class="sc"><div class="sc-lbl">Valor Pendente</div><div class="sc-val" id="s-valor">—</div></div>
+    <div class="sc"><div class="sc-lbl">Vencem Hoje</div><div class="sc-val rose" id="s-hoje">—</div></div>
+  </div>
+
+  <div id="grid"></div>
+</main>
+</div>
+
+
+<!-- ═══════════ ABA HISTÓRICO ═══════════ -->
+<div class="pagina" id="pag-historico">
+<main class="main">
+  <div class="abar">
+    <div class="busca-w">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--dim);flex-shrink:0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="busca-hist" placeholder="Buscar no histórico..."/>
+    </div>
+    <div class="fgrp">
+      <button class="fbtn ativo" data-g="fh" data-loja="todas" onclick="setLojaHist(this)">Todas</button>
+      <button class="fbtn" data-g="fh" data-loja="loja1" onclick="setLojaHist(this)">Loja 1</button>
+      <button class="fbtn" data-g="fh" data-loja="loja2" onclick="setLojaHist(this)">Loja 2</button>
+    </div>
+  </div>
+  <div id="grid-historico">
+    <div class="vazio">
+      <div class="vazio__icon">📋</div>
+      <h3>Histórico vazio</h3>
+      <p>Cada vez que você clicar em "Enviar" num boleto, o template gerado aparece aqui para consulta futura.</p>
+    </div>
+  </div>
+</main>
+</div>
+
+
+<!-- ═══════════ ABA CÓDIGO RÁPIDO ═══════════ -->
+<div class="pagina" id="pag-expresso">
+<main class="main" style="max-width:640px">
+  <div style="margin-bottom:1.5rem">
+    <h2 style="font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:700;margin-bottom:.5rem">⚡ Código Rápido</h2>
+    <p style="font-size:.88rem;color:var(--muted);line-height:1.7">
+      Mandaram o boleto em foto ou PDF e você só precisa do código para repassar?<br>
+      Sobe aqui — extrai o código na hora. <strong style="color:var(--txt)">Não salva no banco.</strong>
+    </p>
+  </div>
+
+  <div class="dz" id="dz-exp"
+       onclick="document.getElementById('fileExp').click()"
+       ondragover="event.preventDefault();this.classList.add('over')"
+       ondragleave="this.classList.remove('over')"
+       ondrop="onDropExp(event)">
+    <div class="dz__icon">📎</div>
+    <div class="dz__txt"><strong>Clique ou arraste</strong> o boleto aqui<br><span>Foto JPG/PNG ou PDF</span></div>
+  </div>
+  <input type="file" id="fileExp" accept="image/*,.pdf" style="display:none"/>
+
+  <div id="exp-resultado" style="display:none;flex-direction:column;gap:1rem;margin-top:1.2rem">
+    <div id="exp-aviso" class="aviso" style="display:none"></div>
+    <div class="exp-card">
+      <div class="exp-label">🔢 Linha Digitável</div>
+      <div class="exp-codigo" id="exp-linha">—</div>
+      <div class="exp-meta" id="exp-meta"></div>
+    </div>
+    <div style="display:flex;gap:.7rem;flex-wrap:wrap">
+      <button class="btn-pri" style="flex:1;justify-content:center" onclick="copiarCodigoRapido()">📋 Copiar código</button>
+      <button class="btn-verde" style="flex:1;justify-content:center" onclick="copiarTemplateRapido()">📤 Copiar template WhatsApp</button>
+    </div>
+    <p style="font-size:.76rem;color:var(--dim);text-align:center">Para salvar no histórico use "+ Novo Lançamento" no Dashboard.</p>
+  </div>
+</main>
+</div>
+
+
+<!-- ═══════════ MODAL WIZARD ═══════════ -->
+<div class="modal-ov" id="mWizard" style="display:none">
+<div class="modal">
+  <div class="mhdr">
+    <div class="mtitulo" id="wizard-titulo">📄 Novo Lançamento</div>
+    <button class="mclose" onclick="fecharWizard()">✕</button>
+  </div>
+  <div class="mbody">
+
+    <!-- Indicador de etapas -->
+    <div class="steps">
+      <div class="step ativo" id="si-1"><span class="step-num">1</span>Tipo</div>
+      <div class="step"       id="si-2"><span class="step-num">2</span>Documentos</div>
+      <div class="step"       id="si-3"><span class="step-num">3</span>Conferir</div>
+    </div>
+
+    <!-- ETAPA 1: Escolher o fluxo -->
+    <div class="step-panel ativo" id="sp-1">
+      <p style="font-size:.85rem;color:var(--muted)">O que você tem disponível agora?</p>
+      <div class="fluxo-grid">
+        <div class="fluxo-btn" id="fb-completo" onclick="escolherFluxo('completo')">
+          <span class="fluxo-icon">🧾💳</span>
+          <div class="fluxo-titulo">Tenho NFe + Boleto</div>
+          <div class="fluxo-desc">Identificação automática da loja pelo CNPJ da nota fiscal</div>
+        </div>
+        <div class="fluxo-btn" id="fb-soboleto" onclick="escolherFluxo('soboleto')">
+          <span class="fluxo-icon">💳</span>
+          <div class="fluxo-titulo">Só tenho o Boleto</div>
+          <div class="fluxo-desc">Você escolhe a loja manualmente e sobe só o boleto</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ETAPA 2A: NFe + Boleto -->
+    <div class="step-panel" id="sp-2a">
+      <!-- Upload NFe -->
+      <div id="bloco-nfe">
+        <p style="font-size:.82rem;color:var(--muted);margin-bottom:.6rem">
+          <strong style="color:var(--txt)">Passo 1:</strong> Foto da Nota Fiscal
+        </p>
+        <div class="dz" id="dz-nfe"
+             onclick="document.getElementById('fileNfe').click()"
+             ondragover="event.preventDefault();this.classList.add('over')"
+             ondragleave="this.classList.remove('over')"
+             ondrop="onDropNfe(event)">
+          <div class="dz__icon">🧾</div>
+          <div class="dz__txt"><strong>Clique ou arraste</strong> a foto da NFe<br><span>PNG ou JPG</span></div>
+        </div>
+        <input type="file" id="fileNfe" accept="image/*" style="display:none"/>
+        <div id="nfe-result" style="display:none"></div>
+      </div>
+
+      <!-- Upload Boleto (aparece após NFe) -->
+      <div id="bloco-boleto" style="display:none">
+        <p style="font-size:.82rem;color:var(--muted);margin-bottom:.6rem">
+          <strong style="color:var(--txt)">Passo 2:</strong> Foto do Boleto
+        </p>
+        <div class="dz" id="dz-boleto"
+             onclick="document.getElementById('fileBoleto').click()"
+             ondragover="event.preventDefault();this.classList.add('over')"
+             ondragleave="this.classList.remove('over')"
+             ondrop="onDropBoleto(event)">
+          <div class="dz__icon">💳</div>
+          <div class="dz__txt"><strong>Clique ou arraste</strong> a foto do Boleto<br><span>PNG ou JPG</span></div>
+        </div>
+        <input type="file" id="fileBoleto" accept="image/*" style="display:none"/>
+        <div id="boleto-result" style="display:none"></div>
+      </div>
+
+      <div style="display:flex;gap:.7rem;justify-content:space-between">
+        <button class="btn-sec" onclick="irStep(1)">← Voltar</button>
+        <button class="btn-pri" id="btn-p2a" disabled onclick="irStep(3)">Conferir →</button>
+      </div>
+    </div>
+
+    <!-- ETAPA 2B: Só Boleto -->
+    <div class="step-panel" id="sp-2b">
+      <div class="fg">
+        <label class="lbl">Selecione a Loja</label>
+        <select class="inp" id="loja-manual">
+          <option value="loja1|Loja 1 (Matriz)|37.319.385/0001-64">Loja 1 (Matriz)</option>
+          <option value="loja2|Loja 2 (Filial)|37.319.385/0002-45">Loja 2 (Filial)</option>
+        </select>
+      </div>
+      <div class="dz" id="dz-boleto-b"
+           onclick="document.getElementById('fileBoletoB').click()"
+           ondragover="event.preventDefault();this.classList.add('over')"
+           ondragleave="this.classList.remove('over')"
+           ondrop="onDropBoletoB(event)">
+        <div class="dz__icon">💳</div>
+        <div class="dz__txt"><strong>Clique ou arraste</strong> a foto do Boleto<br><span>PNG, JPG ou PDF</span></div>
+      </div>
+      <input type="file" id="fileBoletoB" accept="image/*,.pdf" style="display:none"/>
+      <div id="boleto-b-result" style="display:none"></div>
+      <div style="display:flex;gap:.7rem;justify-content:space-between">
+        <button class="btn-sec" onclick="irStep(1)">← Voltar</button>
+        <button class="btn-pri" id="btn-p2b" disabled onclick="irStep(3)">Conferir →</button>
+      </div>
+    </div>
+
+    <!-- ETAPA 3: Conferir e salvar -->
+    <div class="step-panel" id="sp-3">
+      <div id="form-conf"></div>
+      <div style="display:flex;gap:.7rem;justify-content:space-between;margin-top:.5rem">
+        <button class="btn-sec" id="btn-volta-3" onclick="voltarStep3()">← Voltar</button>
+        <button class="btn-pri" id="btn-salvar" onclick="salvar()">💾 Salvar no Firebase</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+
+<div id="toasts"></div>
+<div id="loading" style="display:none">
+  <div class="spin-g"></div>
+  <div id="load-txt" style="font-size:.88rem;color:var(--muted)">Aguarde...</div>
+</div>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

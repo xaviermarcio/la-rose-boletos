@@ -1,34 +1,10 @@
-# LA ROSE — Dependências Python
-
-# Servidor web — recebe as requisições do navegador e responde
 fastapi==0.111.0
-
-# Motor do servidor — faz o FastAPI rodar de fato
 uvicorn[standard]==0.29.0
-
-# Permite receber arquivos (fotos/PDFs) via upload
 python-multipart==0.0.9
-
-# Ponte entre Python e o Tesseract OCR
 pytesseract==0.3.10
-
-# Trata a imagem antes do OCR: contraste, cinza, binarização
-opencv-python-headless==4.9.0.80
-
-# Manipulação de imagens — OpenCV depende dela internamente
-Pillow==10.3.0
-
-# Matemática de alta performance — OpenCV usa para representar pixels
-numpy==1.26.4
-
-# SDK Firebase para o servidor Python — salva dados no Firestore
+opencv-python-headless==4.10.0.84
+Pillow==11.1.0
+numpy==2.2.1
 firebase-admin==6.5.0
-
-# Carrega variáveis do arquivo .env sem expor no código
 python-dotenv==1.0.1
-
-# Converte páginas de PDF em imagem para o OCR conseguir ler
-# ATENÇÃO: requer o Poppler instalado no Windows
-# Baixe em: https://github.com/oschwartz10612/poppler-windows/releases
-# Extraia em C:\poppler e adicione C:\poppler\Library\bin ao PATH
 pdf2image==1.17.0
