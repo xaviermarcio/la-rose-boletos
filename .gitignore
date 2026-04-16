@@ -1,0 +1,17 @@
+# Segurança — chaves e senhas nunca vão pro GitHub
+.env
+firebase-key.json
+
+# Python — arquivos gerados automaticamente, não precisam ir pro GitHub
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Sistema operacional — lixo gerado pelo Windows/Mac
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Uploads temporários gerados pelo sistema
+larose_temp/
