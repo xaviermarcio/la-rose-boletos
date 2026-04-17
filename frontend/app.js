@@ -133,7 +133,7 @@ function renderBoletos() {
   const lista = boletosVisiveis();
   grid.innerHTML = lista.length
     ? lista.map(cardHTML).join("")
-    : `<div class="vazio"><div class="vazio__icon"></div>
+    : `<div class="vazio"><div class="vazio__icon">📅</div>
        <h3>Nenhum boleto encontrado</h3>
        <p>Clique em <strong>"+ Novo Lançamento"</strong> para começar.</p></div>`;
 }
