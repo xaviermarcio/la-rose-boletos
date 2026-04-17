@@ -1,4 +1,4 @@
-#  La Rose — Gestor de Boletos
+# 🌸 La Rose — Gestor de Boletos
 
 > *Construído do zero por Márcio Xavier, para resolver um problema real do dia a dia.*
 
@@ -78,7 +78,8 @@ la-rose-boletos/
 ## Instalação completa — do zero
 
 Use este guia sempre que formatar o notebook ou instalar em um PC novo.
-Se preferir, basta dar duplo clique no `configurar.bat` que ele faz os passos 1 a 5 automaticamente.
+
+> **Atalho:** Se preferir não fazer manualmente, dê duplo clique no `configurar.bat` como **Administrador** (botão direito → Executar como administrador) e ele instala o Tesseract e o Poppler automaticamente.
 
 ---
 
@@ -87,8 +88,6 @@ Se preferir, basta dar duplo clique no `configurar.bat` que ele faz os passos 1 
 Acesse `https://python.org/downloads` e baixe a versão mais recente.
 
 Durante a instalação, **antes de clicar em qualquer coisa**, marque obrigatoriamente a opção **"Add Python to PATH"** que fica na parte de baixo da janela. Sem isso o Python não funciona no terminal.
-
-Clique em "Install Now" e aguarde terminar.
 
 Para confirmar que funcionou, abra o terminal e rode:
 ```
@@ -100,40 +99,87 @@ Deve aparecer algo como `Python 3.12.x`.
 
 ### Passo 2 — Instalar o Tesseract OCR
 
-O Tesseract é o motor que lê o texto das imagens. Sem ele o sistema roda em modo simulação.
+O Tesseract é o motor que lê o texto das imagens de NFe e boletos. Sem ele o sistema roda em modo simulação — funciona mas não lê imagens reais.
 
-Acesse `https://github.com/UB-Mannheim/tesseract/wiki` e baixe o instalador `.exe` mais recente.
+#### Opção A — Automático (recomendado)
 
-Durante a instalação:
-- Na tela de componentes, expanda **"Additional language data"** e marque **"Portuguese"**
-- Anote o caminho de instalação — normalmente é `C:\Program Files\Tesseract-OCR`
+Dê duplo clique no `configurar.bat` como **Administrador**. Ele baixa e instala tudo automaticamente. Pule para o Passo 3.
 
-Agora adicione o Tesseract ao PATH do Windows para que o sistema consiga encontrá-lo:
-- Clique com o botão direito em "Este Computador" → Propriedades
-- Configurações avançadas do sistema → Variáveis de Ambiente
-- Em "Variáveis do sistema" clique em "Path" → Editar → Novo
-- Adicione: `C:\Program Files\Tesseract-OCR`
-- Clique OK em tudo e **feche e reabra o terminal**
+#### Opção B — Manual (se o bat não funcionar)
 
-Para confirmar:
+**1.** Acesse `https://github.com/UB-Mannheim/tesseract/wiki`
+
+**2.** Clique no link de download do instalador Windows 64-bit — o arquivo termina em `.exe` e tem um nome parecido com `tesseract-ocr-w64-setup-5.4.0.exe`
+
+**3.** Abra o instalador. Na tela de seleção de componentes:
+- Expanda **"Additional language data (download)"**
+- Marque **"Portuguese"**
+- Mantenha o caminho padrão: `C:\Program Files\Tesseract-OCR`
+
+**4.** Conclua a instalação normalmente.
+
+**5.** Adicione o Tesseract ao PATH do Windows para que o sistema consiga encontrá-lo:
+- Pressione `Win + R`, digite `sysdm.cpl` e pressione Enter
+- Clique em **"Configurações avançadas do sistema"**
+- Clique em **"Variáveis de Ambiente"**
+- Na seção **"Variáveis do sistema"** encontre a variável **"Path"** e clique em **"Editar"**
+- Clique em **"Novo"** e adicione: `C:\Program Files\Tesseract-OCR`
+- Clique OK em todas as janelas
+
+**6.** Feche todos os terminais abertos e abra um novo terminal para o PATH ser reconhecido.
+
+**7.** Confirme que funcionou:
 ```
 tesseract --version
 ```
+Deve aparecer algo como `tesseract v5.4.0`.
+
+**8.** Confirme que o português foi instalado:
+```
+tesseract --list-langs
+```
+Deve aparecer `por` na lista.
+
+#### Se o Tesseract não aparecer após instalação
+
+Às vezes o Windows não reconhece mesmo após adicionar ao PATH. Nesse caso, abra o arquivo `backend/ocr_engine.py` e adicione o caminho diretamente. Encontre a linha:
+
+```python
+caminhos_possiveis = [
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+```
+
+E confirme que o caminho bate com onde o Tesseract foi instalado no seu PC. Se instalou em outro lugar, adicione o caminho correto na lista.
 
 ---
 
 ### Passo 3 — Instalar o Poppler (para leitura de PDF)
 
-O Poppler permite que o sistema leia boletos em formato PDF.
+O Poppler permite que o sistema processe boletos enviados em formato PDF.
 
-Acesse `https://github.com/oschwartz10612/poppler-windows/releases` e baixe o `.zip` mais recente. Extraia em `C:\poppler`.
+#### Opção A — Automático (recomendado)
 
-Adicione ao PATH da mesma forma que o Tesseract, mas com o caminho:
+O `configurar.bat` já instala o Poppler automaticamente junto com o Tesseract.
+
+#### Opção B — Manual
+
+**1.** Acesse `https://github.com/oschwartz10612/poppler-windows/releases`
+
+**2.** Baixe o `.zip` mais recente (algo como `Release-24.08.0-0.zip`)
+
+**3.** Extraia o conteúdo em `C:\poppler` — certifique-se que a estrutura fique assim:
 ```
-C:\poppler\Library\bin
+C:\poppler\
+└── Library\
+    └── bin\
+        ├── pdftoppm.exe
+        ├── pdfinfo.exe
+        └── ...
 ```
 
-Para confirmar:
+**4.** Adicione ao PATH do Windows seguindo o mesmo processo do Tesseract, mas com o caminho: `C:\poppler\Library\bin`
+
+**5.** Feche e reabra o terminal. Confirme:
 ```
 pdftoppm -v
 ```
@@ -148,13 +194,11 @@ git clone https://github.com/SEU_USUARIO/la-rose-boletos.git
 cd la-rose-boletos
 ```
 
-**Se não, copie a pasta do projeto** para um lugar fácil de achar, como `C:\Users\SEU_NOME\Documents\la-rose-boletos`.
+**Se não**, copie a pasta do projeto para um lugar fácil como `C:\Users\SEU_NOME\Documents\la-rose-boletos`.
 
 ---
 
 ### Passo 5 — Instalar as dependências Python
-
-Este é o passo mais importante para o sistema funcionar.
 
 Abra o terminal **dentro da pasta raiz do projeto** (onde fica o `requirements.txt`) e rode:
 
@@ -162,12 +206,9 @@ Abra o terminal **dentro da pasta raiz do projeto** (onde fica o `requirements.t
 pip install -r requirements.txt
 ```
 
-**O que esse comando faz:**
-O `pip` é o gerenciador de pacotes do Python — funciona como uma loja de bibliotecas. O `-r requirements.txt` manda ele ler o arquivo `requirements.txt` que lista todas as bibliotecas necessárias e instalar cada uma automaticamente. Você só precisa rodar esse comando uma vez por máquina. Se um dia precisar atualizar as bibliotecas, basta rodar de novo.
+**O que esse comando faz:** o `pip` é o gerenciador de pacotes do Python. O `-r requirements.txt` manda ele ler o arquivo que lista todas as bibliotecas necessárias e instalar cada uma automaticamente. Você só precisa rodar esse comando uma vez por máquina.
 
-Aguarde terminar. Vai aparecer várias linhas de download. Quando terminar deve aparecer `Successfully installed`.
-
-Para confirmar que tudo foi instalado:
+Para confirmar:
 ```
 pip list
 ```
@@ -177,55 +218,54 @@ Procure na lista: fastapi, uvicorn, pytesseract, opencv-python-headless, firebas
 
 ### Passo 6 — Configurar o Firebase
 
-O Firebase é onde os dados ficam salvos na nuvem. Você precisa configurar duas coisas: as credenciais do frontend e a chave do backend.
-
 **6.1 — Credenciais do frontend (firebase-config.js)**
 
-Acesse `https://console.firebase.google.com` e abra o projeto `larose-boletos`. Vá em Configurações do projeto (engrenagem ⚙️) → Seus apps → clique no app web `la-rose-web`. Copie o objeto `firebaseConfig` que aparece lá.
+Acesse `https://console.firebase.google.com`, abra o projeto `larose-boletos`. Vá em Configurações do projeto ⚙️ → Seus apps → clique no app web. Copie o objeto `firebaseConfig`.
 
-Na pasta `frontend/` do projeto, copie o arquivo `firebase-config.exemplo.js`, renomeie a cópia para `firebase-config.js` e substitua os valores de exemplo pelos seus dados reais.
+Na pasta `frontend/`, copie `firebase-config.exemplo.js`, renomeie para `firebase-config.js` e substitua os valores pelos seus dados reais.
 
 **6.2 — Chave de serviço do backend (firebase-key.json)**
 
-No Firebase Console vá em Configurações do projeto → aba "Contas de serviço" → clique em "Gerar nova chave privada" → confirme. Um arquivo JSON será baixado. Renomeie para `firebase-key.json` e coloque dentro da pasta `backend/`.
+No Firebase Console vá em Configurações do projeto → aba "Contas de serviço" → "Gerar nova chave privada". Renomeie o arquivo baixado para `firebase-key.json` e coloque dentro da pasta `backend/`.
 
 ---
 
 ### Passo 7 — Criar o arquivo .env
 
-Na raiz do projeto, copie o arquivo `.env.exemplo` e renomeie a cópia para `.env`. Abra e confirme que está assim:
+Na raiz do projeto, copie `.env.exemplo` e renomeie para `.env`. Confirme que está assim:
 ```
 FIREBASE_KEY_PATH=firebase-key.json
 ```
-Salve e feche.
 
 ---
 
 ### Passo 8 — Iniciar o sistema
 
-Dê duplo clique no `iniciar.bat`.
+Dê duplo clique no `iniciar.bat`. Quando aparecer:
+```
+Uvicorn running on http://0.0.0.0:8000
+OCR: Ativo
+Firebase: Configurado
+```
 
-Quando aparecer no terminal `Uvicorn running on http://0.0.0.0:8000`, abra o Chrome e acesse:
-```
-http://localhost:8000
-```
+Abra o Chrome e acesse `http://localhost:8000`.
 
 ---
 
 ## Uso no dia a dia
 
-Depois que tudo estiver configurado, o único passo necessário é:
+O único passo necessário após a configuração inicial:
 
-1. Dar duplo clique no `iniciar.bat`
+1. Duplo clique no `iniciar.bat`
 2. Acessar `http://localhost:8000` no Chrome
 
-O sistema funciona em qualquer cidade desde que o notebook esteja com você e conectado à internet. A internet é necessária apenas para o Firebase carregar e salvar os dados — o OCR e o processamento de imagem funcionam localmente.
+O sistema funciona em qualquer cidade desde que o notebook esteja com você e conectado à internet. A internet é necessária para o Firebase — o OCR funciona localmente.
 
 ---
 
 ## Acessar pelo celular
 
-Quando o servidor estiver rodando no notebook, o IP local aparece no canto superior direito da interface. Qualquer celular conectado na **mesma rede Wi-Fi** pode acessar pelo IP exibido. Exemplo:
+Com o servidor rodando, o IP aparece no canto superior direito da interface. Qualquer celular na mesma rede Wi-Fi acessa pelo IP exibido:
 ```
 http://192.168.0.50:8000
 ```
@@ -239,13 +279,9 @@ http://192.168.0.50:8000
 | Loja 1 — Matriz | 37.319.385/0001-64 | `37319385000164` |
 | Loja 2 — Filial | 37.319.385/0002-45 | `37319385000245` |
 
-O sistema identifica a loja automaticamente lendo o CNPJ embutido na chave de 44 dígitos da NFe.
-
 ---
 
 ## Template gerado para WhatsApp
-
-O envio é feito em duas mensagens separadas para facilitar o pagamento.
 
 **Mensagem 1 — Informações:**
 ```
@@ -260,18 +296,10 @@ O envio é feito em duas mensagens separadas para facilitar o pagamento.
 ✅ Enviado por Márcio Xavier - Gestor La Rose
 ```
 
-**Mensagem 2 — Linha digitável (só números, sem pontos e espaços):**
+**Mensagem 2 — Linha digitável (só números):**
 ```
 23793381286000782713694000063305892340000125000
 ```
-
----
-
-## O que aprendi construindo isso
-
-Quando comecei não sabia nada sobre APIs, OCR ou Firebase. Aprendi que Python com FastAPI é muito mais simples do que parece para criar um servidor. Que o Tesseract precisa de uma boa imagem para funcionar — iluminação e foco fazem toda a diferença. Que o Firebase é surpreendentemente fácil quando você entende coleções e documentos. E que JavaScript moderno com async/await é completamente diferente e melhor do que o JavaScript antigo.
-
-O mais importante: aprendi que dá para construir uma ferramenta real, que resolve um problema real, sem precisar contratar ninguém. Com paciência, organização e vontade de aprender, qualquer pessoa chega lá.
 
 ---
 
