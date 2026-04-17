@@ -29,7 +29,6 @@ from ocr_engine import (
     OCR_ATIVO,
 )
 
-# Suporte a PDF
 try:
     from pdf2image import convert_from_path
     PDF_ATIVO = True
@@ -43,12 +42,6 @@ from firebase_admin import credentials, firestore
 # ── AUTO-IP ───────────────────────────────────────────────────────────────────
 
 def descobrir_ip() -> str:
-    """
-    Detecta o IP da máquina na rede Wi-Fi local.
-    Abre uma conexão UDP 'falsa' com o Google (8.8.8.8) sem
-    enviar nada — só para descobrir qual interface de rede
-    o sistema usaria, e portanto qual é o IP local.
-    """
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -71,11 +64,6 @@ print(f"📄  PDF: {'Ativo' if PDF_ATIVO else 'Instale pdf2image + Poppler'}\n")
 # ── FIREBASE ──────────────────────────────────────────────────────────────────
 
 def conectar_firebase() -> bool:
-    """
-    Conecta ao Firebase usando a chave de serviço JSON.
-    O caminho da chave vem do arquivo .env via FIREBASE_KEY_PATH.
-    Se o arquivo não existir, roda em modo demo sem salvar nada.
-    """
     caminho = os.getenv("FIREBASE_KEY_PATH", "firebase-key.json")
     if os.path.exists(caminho):
         cred = credentials.Certificate(caminho)
@@ -90,7 +78,7 @@ FIREBASE_ATIVO = conectar_firebase()
 db = firestore.client() if FIREBASE_ATIVO else None
 
 
-# ── APP FASTAPI ───────────────────────────────────────────────────────────────
+# ── APP ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="La Rose API", version="2.0.0")
 
@@ -106,13 +94,9 @@ FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 TEMP_DIR.mkdir(exist_ok=True)
 
 
-# ── MODELOS DE DADOS ──────────────────────────────────────────────────────────
+# ── MODELOS ───────────────────────────────────────────────────────────────────
 
 class BoletoCreate(BaseModel):
-    """
-    Define e valida os dados necessários para criar um boleto.
-    O Pydantic rejeita automaticamente dados no formato errado.
-    """
     fornecedor:      str
     loja_id:         str
     loja_nome:       str
@@ -138,7 +122,6 @@ class BoletoCreate(BaseModel):
 
 
 class StatusUpdate(BaseModel):
-    """Valida a atualização de status de um boleto."""
     status: str
 
     @validator("status")
@@ -148,10 +131,9 @@ class StatusUpdate(BaseModel):
         return v.upper()
 
 
-# ── FUNÇÕES AUXILIARES ────────────────────────────────────────────────────────
+# ── HELPERS ───────────────────────────────────────────────────────────────────
 
 def validar_linha(linha: str) -> bool:
-    """Verifica se a linha digitável tem 47 ou 48 dígitos."""
     if not linha:
         return True
     limpa = re.sub(r"[\s\.]", "", linha)
@@ -159,11 +141,6 @@ def validar_linha(linha: str) -> bool:
 
 
 def checar_duplicidade(linha: str) -> bool:
-    """
-    Consulta o Firestore para ver se esta linha digitável
-    já foi cadastrada antes. Evita boleto pago em duplicidade.
-    Retorna True se já existe (é duplicado).
-    """
     if not db or not linha.strip():
         return False
     limpa = re.sub(r"[\s\.]", "", linha)
@@ -180,24 +157,49 @@ def checar_duplicidade(linha: str) -> bool:
 
 @app.get("/")
 async def raiz():
-    return FileResponse(str(FRONTEND_DIR / "index.html"))
+    return FileResponse(
+        str(FRONTEND_DIR / "index.html"),
+        media_type="text/html"
+    )
 
 @app.get("/app.js")
 async def servir_js():
-    return FileResponse(str(FRONTEND_DIR / "app.js"))
+    return FileResponse(
+        str(FRONTEND_DIR / "app.js"),
+        media_type="application/javascript"
+    )
+
+@app.get("/firebase-config.js")
+async def servir_firebase_config():
+    caminho = FRONTEND_DIR / "firebase-config.js"
+    if not caminho.exists():
+        raise HTTPException(404, "firebase-config.js não encontrado")
+    return FileResponse(
+        str(caminho),
+        media_type="application/javascript"
+    )
 
 @app.get("/manifest.json")
 async def manifesto():
-    return FileResponse(str(FRONTEND_DIR / "manifest.json"))
+    return FileResponse(
+        str(FRONTEND_DIR / "manifest.json"),
+        media_type="application/json"
+    )
 
 @app.get("/sw.js")
 async def service_worker():
-    conteudo = (FRONTEND_DIR / "sw.js").read_text(encoding="utf-8")
-    return Response(
-        content=conteudo,
+    return FileResponse(
+        str(FRONTEND_DIR / "sw.js"),
         media_type="application/javascript",
         headers={"Service-Worker-Allowed": "/"}
     )
+
+@app.get("/favicon.ico")
+async def favicon():
+    caminho = FRONTEND_DIR / "icons" / "icon-192.png"
+    if caminho.exists():
+        return FileResponse(str(caminho))
+    raise HTTPException(404)
 
 @app.get("/icons/{nome}")
 async def icone(nome: str):
@@ -211,7 +213,6 @@ async def icone(nome: str):
 
 @app.get("/api/config")
 async def config():
-    """Retorna configurações do servidor para o frontend."""
     return {
         "ip":             IP,
         "porta":          PORTA,
@@ -226,10 +227,6 @@ async def processar_ocr(
     arquivo: UploadFile = File(...),
     tipo: str = "Boleto"
 ):
-    """
-    Recebe imagem, salva temporariamente, processa OCR
-    e apaga o arquivo logo em seguida.
-    """
     if not arquivo.content_type or not arquivo.content_type.startswith("image/"):
         raise HTTPException(400, "Apenas imagens PNG/JPG são aceitas.")
 
@@ -245,19 +242,13 @@ async def processar_ocr(
     except Exception as e:
         raise HTTPException(500, f"Erro no OCR: {str(e)}")
     finally:
-        # O bloco finally sempre executa — garante limpeza mesmo com erro
         if caminho.exists():
             os.remove(caminho)
-            print(f"🗑️  Temporário removido: {caminho.name}")
+            print(f"🗑️  Removido: {caminho.name}")
 
 
 @app.post("/api/codigo-rapido")
 async def codigo_rapido(arquivo: UploadFile = File(...)):
-    """
-    Fluxo expresso: recebe foto ou PDF de um boleto e retorna
-    apenas a linha digitável, valor e vencimento.
-    Não salva nada no banco — 100% expresso.
-    """
     tipo_arquivo = arquivo.content_type or ""
     eh_pdf       = "pdf" in tipo_arquivo
     eh_imagem    = tipo_arquivo.startswith("image/")
@@ -283,9 +274,7 @@ async def codigo_rapido(arquivo: UploadFile = File(...)):
             f.write(conteudo)
 
         texto_total = ""
-
         if eh_pdf:
-            # Converte cada página do PDF em imagem e roda OCR
             paginas = convert_from_path(str(caminho), dpi=200)
             for i, pagina in enumerate(paginas):
                 img_path = TEMP_DIR / f"{uuid.uuid4()}_p{i}.jpg"
@@ -299,7 +288,6 @@ async def codigo_rapido(arquivo: UploadFile = File(...)):
         valor      = extrair_valor(texto_total)
         vencimento = extrair_vencimento(texto_total)
 
-        # Modo simulação quando OCR não está disponível
         if not OCR_ATIVO:
             linha      = "23793.38128 60007.827136 94000.063305 8 92340000125000"
             valor      = 1250.00
@@ -326,11 +314,6 @@ async def codigo_rapido(arquivo: UploadFile = File(...)):
 
 @app.post("/api/boletos", status_code=201)
 async def criar_boleto(dados: BoletoCreate):
-    """
-    Cria um ou mais boletos no Firestore.
-    Se total_parcelas > 1, cria N documentos com
-    vencimentos incrementais de 30 dias cada.
-    """
     if not db:
         raise HTTPException(503, "Firebase não configurado.")
 
@@ -378,11 +361,6 @@ async def listar_boletos(
     loja_id: Optional[str] = None,
     status:  Optional[str] = None
 ):
-    """
-    Retorna todos os boletos ordenados por vencimento.
-    Aceita filtros opcionais por loja e status via URL.
-    Exemplo: /api/boletos?loja_id=loja1&status=PENDENTE
-    """
     if not db:
         return {"boletos": _demo()}
 
@@ -413,10 +391,6 @@ async def listar_boletos(
 
 @app.patch("/api/boletos/{boleto_id}/status")
 async def atualizar_status(boleto_id: str, dados: StatusUpdate):
-    """
-    Atualiza apenas o campo status de um boleto específico.
-    PATCH atualiza só o que você manda, sem mexer no resto.
-    """
     if not db:
         raise HTTPException(503, "Firebase não configurado.")
     ref = db.collection("boletos").document(boleto_id)
@@ -428,7 +402,6 @@ async def atualizar_status(boleto_id: str, dados: StatusUpdate):
 
 @app.delete("/api/boletos/{boleto_id}")
 async def deletar_boleto(boleto_id: str):
-    """Remove permanentemente um boleto do Firestore."""
     if not db:
         raise HTTPException(503, "Firebase não configurado.")
     ref = db.collection("boletos").document(boleto_id)
@@ -438,46 +411,36 @@ async def deletar_boleto(boleto_id: str):
     return {"sucesso": True}
 
 
-# ── DADOS DE DEMONSTRAÇÃO ─────────────────────────────────────────────────────
+# ── DEMO DATA ─────────────────────────────────────────────────────────────────
 
 def _demo():
-    """Retorna boletos fictícios quando Firebase não está configurado."""
     hoje = datetime.now()
     return [
         {
             "id": "demo-1",
             "fornecedor": "DISTRIBUIDORA FLORES LTDA",
-            "loja_id": "loja1",
-            "loja_nome": "Loja 1 (Matriz)",
-            "cnpj_loja": "37.319.385/0001-64",
-            "valor": 3480.00,
+            "loja_id": "loja1", "loja_nome": "Loja 1 (Matriz)",
+            "cnpj_loja": "37.319.385/0001-64", "valor": 3480.00,
             "vencimento": hoje.strftime("%d/%m/%Y"),
             "linha_digitavel": "23793.38128 60007.827136 94000.063305 8 92340000348000",
-            "parcela": "1/3",
-            "status": "PENDENTE"
+            "parcela": "1/3", "status": "PENDENTE"
         },
         {
             "id": "demo-2",
             "fornecedor": "EMBALAGENS PREMIUM S/A",
-            "loja_id": "loja2",
-            "loja_nome": "Loja 2 (Filial)",
-            "cnpj_loja": "37.319.385/0002-45",
-            "valor": 1220.50,
+            "loja_id": "loja2", "loja_nome": "Loja 2 (Filial)",
+            "cnpj_loja": "37.319.385/0002-45", "valor": 1220.50,
             "vencimento": (hoje + timedelta(days=5)).strftime("%d/%m/%Y"),
             "linha_digitavel": "34191.75009 35000.000000 09004.950008 9 92870000122050",
-            "parcela": "2/6",
-            "status": "ENVIADO"
+            "parcela": "2/6", "status": "ENVIADO"
         },
         {
             "id": "demo-3",
             "fornecedor": "TÊXTEIS DO NORDESTE LTDA",
-            "loja_id": "loja1",
-            "loja_nome": "Loja 1 (Matriz)",
-            "cnpj_loja": "37.319.385/0001-64",
-            "valor": 5200.00,
+            "loja_id": "loja1", "loja_nome": "Loja 1 (Matriz)",
+            "cnpj_loja": "37.319.385/0001-64", "valor": 5200.00,
             "vencimento": (hoje + timedelta(days=15)).strftime("%d/%m/%Y"),
             "linha_digitavel": "23793.38128 60007.827136 94000.063305 8 92870000520000",
-            "parcela": "1/2",
-            "status": "PAGO"
+            "parcela": "1/2", "status": "PAGO"
         },
     ]

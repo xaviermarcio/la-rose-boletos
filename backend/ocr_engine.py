@@ -8,21 +8,44 @@ import os
 from datetime import datetime, timedelta
 from typing import Optional
 
+# ── Tenta importar as libs de OCR ─────────────────────────────────────────────
 try:
     import cv2
     import numpy as np
     import pytesseract
-    OCR_ATIVO = True
+    _LIBS_OK = True
 except ImportError:
-    OCR_ATIVO = False
+    _LIBS_OK = False
 
-# No Windows o Tesseract precisa do caminho completo informado
-if os.name == "nt" and OCR_ATIVO:
-    pytesseract.pytesseract.tesseract_cmd = (
-        r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    )
+# ── Localiza o Tesseract no Windows ───────────────────────────────────────────
+# Tenta os caminhos mais comuns de instalação.
+# Se não encontrar nenhum, o sistema roda em modo simulação.
+OCR_ATIVO = False
 
-# Tabela de lojas: CNPJ sem máscara → dados completos da loja
+if _LIBS_OK:
+    if os.name == "nt":  # Windows
+        caminhos_possiveis = [
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+            r"C:\Users\xavie\AppData\Local\Programs\Tesseract-OCR\tesseract.exe",
+            r"C:\tools\Tesseract-OCR\tesseract.exe",
+        ]
+        for caminho in caminhos_possiveis:
+            if os.path.exists(caminho):
+                pytesseract.pytesseract.tesseract_cmd = caminho
+                OCR_ATIVO = True
+                print(f"✅  Tesseract encontrado: {caminho}")
+                break
+        if not OCR_ATIVO:
+            print("⚠️   Tesseract não encontrado nos caminhos conhecidos.")
+            print("     Rodando em modo simulação.")
+            print("     Para instalar: https://github.com/UB-Mannheim/tesseract/wiki")
+    else:
+        # Linux / macOS — Tesseract fica no PATH automaticamente
+        OCR_ATIVO = True
+
+
+# ── CNPJ das lojas ────────────────────────────────────────────────────────────
 LOJAS = {
     "37319385000164": {
         "loja_id":   "loja1",
@@ -37,36 +60,29 @@ LOJAS = {
 }
 
 
-# ── ETAPA 1: MELHORA A IMAGEM ANTES DO OCR ───────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  PRÉ-PROCESSAMENTO DE IMAGEM
+# ══════════════════════════════════════════════════════════════════════════════
 
 def pre_processar(caminho: str):
     """
-    Recebe o caminho de uma imagem e retorna uma versão
-    melhorada para o OCR ler com mais precisão.
-
-    Passo 1 → Escala de cinza: remove cores desnecessárias
-    Passo 2 → CLAHE: melhora o contraste por regiões
-    Passo 3 → Binarização: converte para preto e branco puro
+    Melhora a imagem antes do OCR.
+    Escala de cinza → CLAHE → binarização adaptativa.
     """
     img = cv2.imread(caminho)
     if img is None:
-        raise ValueError(f"Não foi possível abrir: {caminho}")
+        raise ValueError(f"Não foi possível abrir a imagem: {caminho}")
 
-    # Redimensiona se a imagem for muito grande (mantém proporção)
     h, w = img.shape[:2]
     if w > 2000:
         fator = 2000 / w
         img = cv2.resize(img, (2000, int(h * fator)))
 
-    # Passo 1: converte de colorida (BGR) para escala de cinza
     cinza = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # Passo 2: CLAHE — melhora o contraste de forma inteligente
-    # por regiões da imagem, não de forma global
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     cinza = clahe.apply(cinza)
 
-    # Passo 3: binarização adaptativa — preto e branco puro
     binarizado = cv2.adaptiveThreshold(
         cinza, 255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -76,11 +92,13 @@ def pre_processar(caminho: str):
     return binarizado
 
 
-# ── ETAPA 2: LEITURA OCR ─────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  LEITURA OCR
+# ══════════════════════════════════════════════════════════════════════════════
 
 def ler_texto(caminho: str) -> str:
     """
-    Roda o OCR na imagem pré-processada E na original.
+    Roda OCR na imagem pré-processada e na original.
     Combina os dois resultados para maximizar a precisão.
     """
     if not OCR_ATIVO:
@@ -97,49 +115,32 @@ def ler_texto(caminho: str) -> str:
     return texto_proc + "\n" + texto_orig
 
 
-# ── ETAPA 3: EXTRAÇÃO COM REGEX ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  EXTRAÇÃO COM REGEX
+# ══════════════════════════════════════════════════════════════════════════════
 
 def extrair_chave_nfe(texto: str) -> Optional[str]:
     """
-    Busca a chave de acesso da NFe de 44 dígitos.
-
-    O problema comum é que o OCR às vezes quebra a chave em
-    várias linhas ou insere espaços no meio. Por isso fazemos
-    três tentativas em ordem de confiabilidade:
-
-    Tentativa 1 → remove tudo que não é número e busca 44 dígitos
-                  seguidos. Funciona quando a chave está limpa.
-
-    Tentativa 2 → busca grupos de 4 dígitos separados por espaço,
-                  como "3524 0637 3193 8500 0164...". Algumas NFes
-                  imprimem a chave nesse formato visual.
-
-    Tentativa 3 → busca a palavra "Chave" ou "CHAVE" no texto e
-                  pega os números que vierem logo depois dela.
-                  Útil quando o OCR lê o rótulo junto.
+    Busca a chave de acesso de 44 dígitos da NFe.
+    Tenta três estratégias em ordem de confiabilidade.
     """
-
-    # Tentativa 1: remove não-dígitos e busca sequência de 44
+    # Tentativa 1: remove não-dígitos e busca 44 consecutivos
     apenas_numeros = re.sub(r"\D", "", texto)
     match = re.search(r"\d{44}", apenas_numeros)
     if match:
         return match.group(0)
 
     # Tentativa 2: chave no formato visual com espaços a cada 4 dígitos
-    # Exemplo: "3524 0637 3193 8500 0164 5500 1000 0123 4510 0012 3456"
-    padrao_visual = re.search(
-        r"(\d{4}[\s\-]){10}\d{4}", texto
-    )
+    padrao_visual = re.search(r"(\d{4}[\s\-]){10}\d{4}", texto)
     if padrao_visual:
         chave = re.sub(r"\D", "", padrao_visual.group(0))
         if len(chave) == 44:
             return chave
 
-    # Tentativa 3: procura o rótulo "Chave de Acesso" e pega os números seguintes
+    # Tentativa 3: busca o rótulo "Chave" e pega os números seguintes
     padrao_rotulo = re.search(
         r"chave[^\d]{0,30}([\d\s]{44,55})",
-        texto,
-        re.IGNORECASE
+        texto, re.IGNORECASE
     )
     if padrao_rotulo:
         chave = re.sub(r"\D", "", padrao_rotulo.group(1))
@@ -151,18 +152,8 @@ def extrair_chave_nfe(texto: str) -> Optional[str]:
 
 def identificar_loja(chave: str) -> dict:
     """
-    Identifica a loja buscando o CNPJ dentro da chave NFe.
-
-    A chave de 44 dígitos tem estrutura fixa:
-    Pos  1- 2 → código do estado (ex: 35 = SP)
-    Pos  3- 8 → ano e mês de emissão (AAMM)
-    Pos  9-22 → CNPJ do emitente ← É AQUI QUE CHECAMOS
-    Pos 23-24 → modelo do documento
-    Pos 25-27 → série
-    ...e assim por diante até os 44 dígitos.
-
-    Então basta verificar se o CNPJ da Loja 1 ou da Loja 2
-    aparece em algum lugar dentro da chave.
+    Identifica a loja buscando o CNPJ embutido na chave NFe.
+    O CNPJ fica nas posições 9 a 22 da chave de 44 dígitos.
     """
     for cnpj, dados in LOJAS.items():
         if cnpj in chave:
@@ -175,10 +166,7 @@ def identificar_loja(chave: str) -> dict:
 
 
 def extrair_linha_digitavel(texto: str) -> Optional[str]:
-    """
-    Extrai a linha digitável do boleto.
-    Tenta dois padrões: com pontos/espaços ou só números (47-48 dígitos).
-    """
+    """Extrai linha digitável do boleto (47 ou 48 dígitos)."""
     padroes = [
         r"\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}",
         r"\d{47,48}",
@@ -191,10 +179,7 @@ def extrair_linha_digitavel(texto: str) -> Optional[str]:
 
 
 def extrair_valor(texto: str) -> Optional[float]:
-    """
-    Extrai o valor monetário em reais.
-    Tenta encontrar padrões como R$ 1.250,00
-    """
+    """Extrai valor monetário em reais."""
     padroes = [
         r"R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})",
         r"VALOR[:\s]+R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})",
@@ -213,9 +198,7 @@ def extrair_valor(texto: str) -> Optional[float]:
 
 
 def extrair_vencimento(texto: str) -> Optional[str]:
-    """
-    Extrai a data de vencimento no formato DD/MM/AAAA.
-    """
+    """Extrai data de vencimento no formato DD/MM/AAAA."""
     padroes = [
         r"VENCIMENTO[:\s]+(\d{2}/\d{2}/\d{4})",
         r"VENC\.?[:\s]+(\d{2}/\d{2}/\d{4})",
@@ -229,9 +212,7 @@ def extrair_vencimento(texto: str) -> Optional[str]:
 
 
 def extrair_fornecedor(texto: str) -> Optional[str]:
-    """
-    Tenta extrair o nome do fornecedor/cedente.
-    """
+    """Tenta extrair o nome do fornecedor/cedente."""
     padroes = [
         r"CEDENTE[:\s]+([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][^\n]{3,60})",
         r"BENEFICI[ÁA]RIO[:\s]+([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][^\n]{3,60})",
@@ -244,12 +225,14 @@ def extrair_fornecedor(texto: str) -> Optional[str]:
     return None
 
 
-# ── FUNÇÃO PRINCIPAL ─────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  FUNÇÃO PRINCIPAL
+# ══════════════════════════════════════════════════════════════════════════════
 
 def processar_documento(caminho: str, tipo: str) -> dict:
     """
-    Orquestra tudo: imagem → OCR → extração → dicionário de dados.
-    Retorna sempre um dicionário com sucesso, dados e se é simulado.
+    Orquestra todo o processo:
+    imagem → OCR → extração → dicionário de dados estruturados.
     """
     resultado = {
         "tipo":     tipo,
@@ -280,6 +263,18 @@ def processar_documento(caminho: str, tipo: str) -> dict:
                 "valor":      extrair_valor(texto),
                 "vencimento": extrair_vencimento(texto) or "",
             }
+        else:
+            # NFe processada mas chave não encontrada
+            resultado["sucesso"] = False
+            resultado["dados"]   = {
+                "chave_nfe":  "",
+                "loja_id":    "loja1",
+                "loja_nome":  "Loja 1 (Matriz)",
+                "cnpj_loja":  "37.319.385/0001-64",
+                "fornecedor": extrair_fornecedor(texto) or "",
+                "valor":      extrair_valor(texto),
+                "vencimento": extrair_vencimento(texto) or "",
+            }
 
     elif tipo == "Boleto":
         linha = extrair_linha_digitavel(texto)
@@ -297,7 +292,7 @@ def processar_documento(caminho: str, tipo: str) -> dict:
 
 
 def _dados_simulados(tipo: str) -> dict:
-    """Dados de exemplo para quando o Tesseract não está instalado."""
+    """Dados de exemplo quando Tesseract não está disponível."""
     venc = (datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y")
     if tipo == "NFe":
         return {
