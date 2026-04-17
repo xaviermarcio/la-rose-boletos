@@ -4,8 +4,8 @@
   "description": "Sistema de automação e gestão de boletos La Rose",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d0d0f",
-  "theme_color": "#e8566a",
+  "background_color": "#f0ebe2",
+  "theme_color": "#b85c38",
   "orientation": "portrait-primary",
   "icons": [
     {

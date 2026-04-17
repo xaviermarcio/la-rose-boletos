@@ -1,18 +1,18 @@
-# Segurança — chaves e senhas nunca vão pro GitHub
+# Segurança — nunca vão pro GitHub
 .env
 firebase-key.json
 frontend/firebase-config.js
 
-# Python — arquivos gerados automaticamente, não precisam ir pro GitHub
+# Python
 __pycache__/
 *.pyc
 .venv/
 venv/
 
-# Sistema operacional — lixo gerado pelo Windows/Mac
+# Sistema operacional
 Thumbs.db
 .DS_Store
 desktop.ini
 
-# Uploads temporários gerados pelo sistema
+# Uploads temporários
 larose_temp/
