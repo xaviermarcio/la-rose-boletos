@@ -1,4 +1,4 @@
-# 🌸 La Rose — Gestor de Boletos
+#  La Rose — Gestor de Boletos
 
 > *Construído do zero por Márcio Xavier, para resolver um problema real do dia a dia.*
 
