@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>La Rose · Boletos</title>
-  <link rel="manifest" href="./manifest.json"/>
+  <link rel="manifest" href="/manifest.json"/>
   <meta name="theme-color" content="#1c1512"/>
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -299,6 +299,46 @@
       .nav-abas{padding:0 2rem}
       .cal-dia{min-height:80px}
     }
+
+    /* ── CONFERENCIA DE BOLETO ── */
+    .boleto-conferencia{background:#fdf5e0;border:1.5px solid rgba(138,110,40,.2);
+      border-left:4px solid var(--env);border-radius:var(--r);padding:.9rem 1rem}
+    .bc-header{display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem;flex-wrap:wrap}
+    .bc-ok{font-size:.85rem;font-weight:700;color:var(--env)}
+    .bc-valido{font-size:.72rem;font-weight:700;background:#edf7f0;color:var(--pago);
+      padding:.15rem .5rem;border-radius:3px;border:1px solid rgba(46,102,66,.2)}
+    .bc-invalido{font-size:.72rem;font-weight:700;background:#fff0eb;color:var(--pend);
+      padding:.15rem .5rem;border-radius:3px;border:1px solid rgba(184,92,56,.2)}
+    .bc-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+      color:var(--muted);margin-bottom:.4rem}
+    .bc-codigo{font-family:'IBM Plex Mono',monospace;font-size:.95rem;font-weight:600;
+      color:var(--ink);background:var(--sf);border:1.5px solid var(--bd);
+      border-radius:5px;padding:.65rem .85rem;letter-spacing:.04em;
+      word-break:break-all;line-height:1.8;margin-bottom:.5rem}
+    .bc-meta{display:flex;gap:.6rem;flex-wrap:wrap}
+    .bc-chip{font-size:.8rem;font-weight:600;color:var(--ink2);background:var(--sf2);
+      border:1px solid var(--bd);border-radius:4px;padding:.2rem .55rem}
+
+    /* ── STATUS LINHA DIGITAVEL ── */
+    .linha-status-box{margin-top:.3rem;min-height:1.2rem}
+    .ls-ok{font-size:.72rem;color:var(--pago);font-weight:600;
+      display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;word-break:break-all}
+    .ls-erro{font-size:.72rem;color:var(--pend);font-weight:600}
+    .ls-aviso{font-size:.72rem;color:var(--env);font-weight:600}
+
+    /* ── CODIGO NO HISTORICO ── */
+    .ch-codigo-wrap{background:var(--sf2);border:1.5px solid var(--bd);
+      border-left:3px solid var(--ink2);border-radius:var(--r);
+      padding:.7rem .9rem;margin:.6rem 0}
+    .ch-codigo-label{font-size:.65rem;font-weight:700;text-transform:uppercase;
+      letter-spacing:.07em;color:var(--muted);margin-bottom:.35rem}
+    .ch-codigo{font-family:'IBM Plex Mono',monospace;font-size:.82rem;
+      font-weight:600;color:var(--ink);word-break:break-all;line-height:1.8;
+      margin-bottom:.45rem}
+    .ch-copiar-linha{background:var(--ink2);color:#fff;border:none;
+      border-radius:4px;padding:.3rem .75rem;font-size:.72rem;font-weight:700;
+      cursor:pointer;font-family:'Barlow',sans-serif;transition:opacity .15s}
+    .ch-copiar-linha:active{opacity:.8}
   </style>
 </head>
 <body>
@@ -428,7 +468,7 @@
     </h2>
     <p style="font-size:.88rem;color:var(--muted);line-height:1.65">
       Mandaram o boleto em foto ou PDF e você só precisa do código?<br>
-      Sobe aqui — extrai na hora. <strong style="color:var(--ink)">Não salva no banco.</strong>
+      Sobe a foto aqui — extrai na hora. <strong style="color:var(--ink)">Não salva no banco.</strong><br><small style="color:var(--muted);font-size:.78rem">Apenas fotos JPG/PNG. Para PDF, tire foto da tela.</small>
     </p>
   </div>
 
@@ -438,23 +478,39 @@
        ondragleave="this.classList.remove('over')"
        ondrop="onDropExp(event)">
     <div class="dz__icon">📎</div>
-    <div class="dz__txt"><strong>Toque ou arraste</strong> o boleto aqui<br><span>Foto JPG/PNG ou PDF</span></div>
+    <div class="dz__txt"><strong>Toque ou arraste</strong> o boleto aqui<br><span>Foto JPG ou PNG</span></div>
   </div>
-  <input type="file" id="fileExp" accept="image/*,.pdf" style="display:none"/>
+  <input type="file" id="fileExp" accept="image/*" style="display:none" accept="image/*,application/pdf"/>
 
-  <div id="exp-resultado" style="display:none;flex-direction:column;gap:.9rem;margin-top:1rem">
+  <div id="exp-resultado" style="display:none;flex-direction:column;gap:.75rem;margin-top:1rem">
     <div id="exp-aviso" class="aviso" style="display:none"></div>
-    <div class="exp-card">
-      <div class="exp-label">🔢 Linha Digitável (só números)</div>
-      <div class="exp-codigo" id="exp-linha">—</div>
-      <div class="exp-meta" id="exp-meta"></div>
+
+    <div class="sec-label">💳 Boleto</div>
+
+    <div class="fg">
+      <label class="lbl">Linha Digitável (só números)</label>
+      <div class="exp-codigo" id="exp-linha" style="font-family:'IBM Plex Mono',monospace;
+           font-size:.75rem;background:var(--sf2);border:1.5px solid var(--bd);border-radius:var(--r);
+           padding:.6rem .85rem;word-break:break-all;color:var(--ink)">—</div>
     </div>
+
+    <div class="fg2">
+      <div class="fg">
+        <label class="lbl">Vencimento</label>
+        <div class="inp" id="exp-venc" style="background:var(--sf2);color:var(--ink)">—</div>
+      </div>
+      <div class="fg">
+        <label class="lbl">Valor</label>
+        <div class="inp" id="exp-valor" style="background:var(--sf2);color:var(--ink);font-weight:700">—</div>
+      </div>
+    </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
       <button class="btn-pri" onclick="copiarCodigoRapido()">🔢 Copiar Linha</button>
       <button class="btn-outline" onclick="copiarTemplateRapido()">📋 Template</button>
     </div>
     <p style="font-size:.75rem;color:var(--dim);text-align:center">
-      Para salvar use "+ Novo" no Dashboard.
+      Não salva no banco. Para salvar use "+ Novo" no Dashboard.
     </p>
   </div>
 </main>
@@ -463,7 +519,7 @@
 
 <!-- ═══ MODAL WIZARD ═══ -->
 <div class="modal-ov" id="mWizard" style="display:none">
-<div class="modal">
+<div class="modal" onclick="event.stopPropagation()">
   <div class="mhdr">
     <div class="mtitulo">📄 Novo Lançamento</div>
     <button class="mclose" onclick="fecharWizard()">✕</button>
@@ -505,7 +561,7 @@
           <div class="dz__icon">🧾</div>
           <div class="dz__txt"><strong>Toque ou arraste</strong> a NFe<br><span>PNG ou JPG</span></div>
         </div>
-        <input type="file" id="fileNfe" accept="image/*" style="display:none"/>
+        <input type="file" id="fileNfe" accept="image/*" style="display:none" accept="image/*,application/pdf"/>
         <div id="nfe-result" style="display:none;margin-top:.6rem"></div>
       </div>
       <div id="bloco-boleto" style="display:none">
@@ -518,7 +574,7 @@
           <div class="dz__icon">💳</div>
           <div class="dz__txt"><strong>Toque ou arraste</strong> o Boleto<br><span>PNG ou JPG</span></div>
         </div>
-        <input type="file" id="fileBoleto" accept="image/*" style="display:none"/>
+        <input type="file" id="fileBoleto" accept="image/*" style="display:none" accept="image/*,application/pdf"/>
         <div id="boleto-result" style="display:none;margin-top:.6rem"></div>
       </div>
       <div style="display:flex;gap:.5rem;justify-content:space-between">
@@ -542,9 +598,9 @@
            ondragleave="this.classList.remove('over')"
            ondrop="onDropBoletoB(event)">
         <div class="dz__icon">💳</div>
-        <div class="dz__txt"><strong>Toque ou arraste</strong> o Boleto<br><span>PNG, JPG ou PDF</span></div>
+        <div class="dz__txt"><strong>Toque ou arraste</strong> o Boleto<br><span>PNG ou JPG</span></div>
       </div>
-      <input type="file" id="fileBoletoB" accept="image/*,.pdf" style="display:none"/>
+      <input type="file" id="fileBoletoB" accept="image/*" style="display:none" accept="image/*,application/pdf"/>
       <div id="boleto-b-result" style="display:none;margin-top:.6rem"></div>
       <div style="display:flex;gap:.5rem;justify-content:space-between">
         <button class="btn-sec" onclick="irStep(1)">← Voltar</button>

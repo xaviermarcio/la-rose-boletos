@@ -204,6 +204,8 @@ Abra o terminal **dentro da pasta raiz do projeto** (onde fica o `requirements.t
 
 ```
 pip install -r requirements.txt
+
+python -m pip install -r requirements.txt
 ```
 
 **O que esse comando faz:** o `pip` é o gerenciador de pacotes do Python. O `-r requirements.txt` manda ele ler o arquivo que lista todas as bibliotecas necessárias e instalar cada uma automaticamente. Você só precisa rodar esse comando uma vez por máquina.

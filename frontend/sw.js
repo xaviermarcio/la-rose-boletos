@@ -1,5 +1,5 @@
 // LA ROSE — Service Worker PWA
-const CACHE = "la-rose-v1";
+const CACHE = "la-rose-v3";
 const ARQUIVOS = ["/", "/app.js", "/manifest.json"];
 
 self.addEventListener("install", e => {

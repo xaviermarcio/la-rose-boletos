@@ -1,5 +1,5 @@
-// LA ROSE — app.js
-// Importa Firebase do CDN (ES Modules)
+"use strict";
+
 import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -10,6 +10,37 @@ import { getFirestore, collection, addDoc, getDocs,
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db          = getFirestore(firebaseApp);
+
+// ═══════════════════════════════════════════════════════════════
+//  UTILITÁRIO — COPIAR TEXTO
+//  Funciona tanto em localhost quanto pelo IP da rede
+// ═══════════════════════════════════════════════════════════════
+async function copiarTexto(texto) {
+  // Tenta clipboard API moderna (localhost e https)
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    } catch (e) {
+      // Fallback abaixo
+    }
+  }
+  // Fallback via execCommand (funciona no IP da rede local)
+  try {
+    const el = document.createElement("textarea");
+    el.value = texto;
+    el.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(el);
+    if (ok) return true;
+  } catch (e) {
+    // Nada
+  }
+  return false;
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  ESTADO
@@ -26,7 +57,8 @@ const E = {
   calMes:       new Date().getMonth(),
   wizard: {
     fluxo:"", loja_id:"", loja_nome:"", cnpj_loja:"",
-    chave_nfe:"", fornecedor:"", valor:null, vencimento:"", linha:"",
+    chave_nfe:"", fornecedor:"", valor:null, vencimento:"",
+    linha:"", data_emissao:"", numero_nota:"",
   }
 };
 
@@ -54,7 +86,7 @@ async function carregarConfig() {
     const dot = document.getElementById("dot");
     const lbl = document.getElementById("dot-lbl");
     dot.className   = d.ocr_ativo ? "dot ativo" : "dot sim";
-    lbl.textContent = d.ocr_ativo ? "OCR Ativo"  : "OCR Simulado";
+    lbl.textContent = d.ocr_ativo ? "OCR Ativo" : "OCR Simulado";
     set("ip-display", `http://${d.ip}:${d.porta}`);
   } catch {
     toast("Backend offline. Inicie com iniciar.bat", "erro");
@@ -62,7 +94,7 @@ async function carregarConfig() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  API BACKEND
+//  API
 // ═══════════════════════════════════════════════════════════════
 async function api(metodo, rota, corpo = null) {
   const opts = { method:metodo, headers:{"Content-Type":"application/json"} };
@@ -121,9 +153,9 @@ async function carregarBoletos() {
 
 function boletosVisiveis() {
   return E.boletos.filter(b => {
-    if (E.filtroLoja !== "todas" && b.loja_id !== E.filtroLoja) return false;
-    if (E.filtroStatus !== "todos" && b.status !== E.filtroStatus) return false;
-    if (E.termoBusca && !b.fornecedor?.toLowerCase().includes(E.termoBusca)) return false;
+    if (E.filtroLoja   !== "todas" && b.loja_id !== E.filtroLoja)             return false;
+    if (E.filtroStatus !== "todos" && b.status  !== E.filtroStatus)            return false;
+    if (E.termoBusca   && !b.fornecedor?.toLowerCase().includes(E.termoBusca)) return false;
     return true;
   });
 }
@@ -133,9 +165,9 @@ function renderBoletos() {
   const lista = boletosVisiveis();
   grid.innerHTML = lista.length
     ? lista.map(cardHTML).join("")
-    : `<div class="vazio"><div class="vazio__icon">📅</div>
+    : `<div class="vazio"><div class="vazio__icon">📄</div>
        <h3>Nenhum boleto encontrado</h3>
-       <p>Clique em <strong>"+ Novo Lançamento"</strong> para começar.</p></div>`;
+       <p>Clique em <strong>"+ Novo"</strong> para começar.</p></div>`;
 }
 
 function cardHTML(b) {
@@ -244,8 +276,8 @@ function calNavegar(dir) {
 
 function renderCalendario() {
   set("cal-titulo", `${MESES[E.calMes]} ${E.calAno}`);
-  const grid        = document.getElementById("cal-grid");
-  const hoje        = new Date(); hoje.setHours(0,0,0,0);
+  const grid = document.getElementById("cal-grid");
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
   const primeiroDia = new Date(E.calAno, E.calMes, 1);
   const ultimoDia   = new Date(E.calAno, E.calMes + 1, 0);
   const inicio      = primeiroDia.getDay();
@@ -275,22 +307,17 @@ function renderCalendario() {
 
     const dots = boletos.slice(0,3).map(b => {
       const diff = Math.ceil((data - hoje) / 86400000);
-      const sr = b.status === "PAGO" ? "pago"
+      const sr = b.status==="PAGO" ? "pago"
                : diff < 0 ? "venc"
-               : b.status === "ENVIADO" ? "env" : "pend";
+               : b.status==="ENVIADO" ? "env" : "pend";
       return `<span class="cal-boleto-dot cal-dot-${sr}">${esc(b.fornecedor?.split(" ")[0]||"—")}</span>`;
     }).join("");
 
-    const mais = boletos.length > 3
-      ? `<span class="cal-mais">+${boletos.length-3}</span>` : "";
-
+    const mais = boletos.length > 3 ? `<span class="cal-mais">+${boletos.length-3}</span>` : "";
     const onclick = boletos.length ? `onclick="abrirDia('${chave}')"` : "";
 
-    html += `
-    <div class="cal-dia${ehHoje?" hoje":""}" ${onclick}>
-      <div class="cal-dia-num">${d}</div>
-      ${dots}${mais}
-    </div>`;
+    html += `<div class="cal-dia${ehHoje?" hoje":""}" ${onclick}>
+      <div class="cal-dia-num">${d}</div>${dots}${mais}</div>`;
   }
 
   const total = inicio + ultimoDia.getDate();
@@ -306,11 +333,11 @@ function abrirDia(chave) {
   const boletos = E.boletos.filter(b => b.vencimento === chave);
   if (!boletos.length) return;
   set("mDia-titulo", `📅 ${chave}`);
-  const hoje  = new Date(); hoje.setHours(0,0,0,0);
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
   const lista = document.getElementById("mDia-lista");
   lista.innerHTML = boletos.map(b => {
     const diff = Math.ceil((dataBR(b.vencimento) - hoje) / 86400000);
-    const sr   = b.status === "PAGO" ? "pago" : diff < 0 ? "vencido" : b.status.toLowerCase();
+    const sr   = b.status==="PAGO" ? "pago" : diff < 0 ? "vencido" : b.status.toLowerCase();
     return `
     <div class="dia-item ${sr}">
       <div class="dia-item-nome">${esc(b.fornecedor)}</div>
@@ -355,7 +382,8 @@ function fecharWizard() {
 function resetWizard() {
   irStep(1, true);
   E.wizard = {fluxo:"",loja_id:"",loja_nome:"",cnpj_loja:"",
-              chave_nfe:"",fornecedor:"",valor:null,vencimento:"",linha:""};
+              chave_nfe:"",fornecedor:"",valor:null,vencimento:"",
+              linha:"",data_emissao:"",numero_nota:""};
   ["nfe-result","boleto-result","boleto-b-result"].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.style.display="none"; el.innerHTML=""; }
@@ -410,25 +438,28 @@ function onDropNfe(e) {
 }
 
 async function processarNfe(arquivo) {
-  if (!arquivo.type.startsWith("image/")) { toast("Envie JPG ou PNG da NFe.","erro"); return; }
+  if (!arquivo.type.startsWith("image/") && arquivo.type !== "application/pdf" && !arquivo.name?.toLowerCase().endsWith(".pdf")) { toast("Envie JPG, PNG ou PDF da NFe.","erro"); return; }
   loading("Lendo a Nota Fiscal...");
   try {
     const r = await enviarImagem("/api/ocr?tipo=NFe", arquivo);
     ocultarLoading();
     const d = r.dados || {};
-    E.wizard.loja_id   = d.loja_id   || "loja1";
-    E.wizard.loja_nome = d.loja_nome || "Loja 1 (Matriz)";
-    E.wizard.cnpj_loja = d.cnpj_loja || "37.319.385/0001-64";
-    E.wizard.chave_nfe = d.chave_nfe || "";
+    E.wizard.loja_id      = d.loja_id      || "loja1";
+    E.wizard.loja_nome    = d.loja_nome    || "Loja 1 (Matriz)";
+    E.wizard.cnpj_loja    = d.cnpj_loja    || "37.319.385/0001-64";
+    E.wizard.chave_nfe    = d.chave_nfe    || "";
+    E.wizard.data_emissao = d.data_emissao || "";
+    E.wizard.numero_nota  = d.numero_nota  || "";
     if (d.fornecedor) E.wizard.fornecedor = d.fornecedor;
-    if (d.valor)      E.wizard.valor      = d.valor;
-    if (d.vencimento) E.wizard.vencimento = d.vencimento;
+
     const res = document.getElementById("nfe-result");
     res.style.display = "block";
     res.innerHTML = `<div class="nfe-ok">
       <div class="nfe-ok-loja">✅ ${esc(E.wizard.loja_nome)} identificada</div>
-      <div class="nfe-ok-chave">Chave: ${esc(E.wizard.chave_nfe)||"não encontrada"}</div>
-      ${r.simulado?`<div style="font-size:.72rem;color:var(--env);margin-top:.25rem">⚠️ Modo simulação</div>`:""}
+      ${E.wizard.fornecedor ? `<div style="font-size:.85rem;color:var(--pago);margin-top:.2rem">📦 ${esc(E.wizard.fornecedor)}</div>` : ""}
+      ${E.wizard.chave_nfe  ? `<div class="nfe-ok-chave">Chave: ${esc(E.wizard.chave_nfe)}</div>` : ""}
+      ${E.wizard.data_emissao ? `<div style="font-size:.78rem;color:var(--muted)">📅 Emissão: ${esc(E.wizard.data_emissao)}</div>` : ""}
+      ${r.simulado ? `<div style="font-size:.72rem;color:var(--env)">⚠️ Modo simulação</div>` : ""}
     </div>`;
     document.getElementById("bloco-boleto").style.display = "block";
     toast("NFe processada! Agora envie o boleto.","sucesso");
@@ -446,7 +477,7 @@ function onDropBoleto(e) {
 }
 
 async function processarBoleto(arquivo, origem) {
-  if (!arquivo.type.startsWith("image/")) { toast("Envie JPG ou PNG do boleto.","erro"); return; }
+  if (!arquivo.type.startsWith("image/") && arquivo.type !== "application/pdf" && !arquivo.name?.toLowerCase().endsWith(".pdf")) { toast("Envie JPG, PNG ou PDF do boleto.","erro"); return; }
   loading("Lendo o Boleto...");
   try {
     const r = await enviarImagem("/api/ocr?tipo=Boleto", arquivo);
@@ -455,21 +486,35 @@ async function processarBoleto(arquivo, origem) {
     if (d.linha_digitavel) E.wizard.linha      = d.linha_digitavel;
     if (d.valor)           E.wizard.valor      = d.valor;
     if (d.vencimento)      E.wizard.vencimento = d.vencimento;
-    if (d.fornecedor && !E.wizard.fornecedor)  E.wizard.fornecedor = d.fornecedor;
-    const res = document.getElementById(origem==="2a"?"boleto-result":"boleto-b-result");
+
+    const resId = origem === "2a" ? "boleto-result" : "boleto-b-result";
+    const res   = document.getElementById(resId);
     res.style.display = "block";
-    res.innerHTML = `<div class="nfe-ok" style="background:#fdf5e0;border-color:rgba(154,124,46,.2);border-left-color:var(--env)">
-      <div style="font-size:.88rem;font-weight:700;color:var(--env)">✅ Boleto processado</div>
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--muted);word-break:break-all;margin-top:.25rem">
-        ${esc(d.linha_digitavel)||"Código não encontrado — preencha manualmente"}
+    const linha_fmt = d.linha_digitavel
+      ? d.linha_digitavel.replace(/\D/g,"")
+          .replace(/^(\d{5})(\d{5})(\d{5})(\d{6})(\d{5})(\d{6})(\d)(\d{14})$/,
+                   "$1.$2 $3.$4 $5.$6 $7 $8")
+      : "";
+    const dv_status = d.linha_digitavel ? validarLinha(d.linha_digitavel) : null;
+    res.innerHTML = `<div class="boleto-conferencia">
+      <div class="bc-header">
+        <span class="bc-ok">✅ Boleto lido</span>
+        ${dv_status === true  ? '<span class="bc-valido">✔ Código válido</span>' : ""}
+        ${dv_status === false ? '<span class="bc-invalido">⚠ Verifique o código</span>' : ""}
       </div>
-      <div style="font-size:.78rem;color:var(--muted);margin-top:.25rem;display:flex;gap:1rem">
-        ${d.valor?`<span>💰 ${brl(d.valor)}</span>`:""}
-        ${d.vencimento?`<span>🗓 ${d.vencimento}</span>`:""}
+      <div class="bc-label">Compare com o boleto físico:</div>
+      <div class="bc-codigo">${esc(linha_fmt) || "Código não encontrado — preencha manualmente na próxima etapa"}</div>
+      <div class="bc-meta">
+        ${d.valor      ? `<span class="bc-chip">💰 ${brl(d.valor)}</span>`      : ""}
+        ${d.vencimento ? `<span class="bc-chip">🗓 ${d.vencimento}</span>` : ""}
       </div>
     </div>`;
-    document.getElementById(origem==="2a"?"btn-p2a":"btn-p2b").disabled = false;
-    toast("Boleto processado! Confira os dados.","sucesso");
+    document.getElementById(origem==="2a" ? "btn-p2a" : "btn-p2b").disabled = false;
+    if (r.corrigido) {
+      toast("Boleto processado! Codigo corrigido automaticamente.", "sucesso");
+    } else {
+      toast("Boleto processado! Confira os dados.", "sucesso");
+    }
   } catch (err) { ocultarLoading(); toast(`Erro: ${err.message}`,"erro"); }
 }
 
@@ -484,36 +529,42 @@ function onDropBoletoB(e) {
 }
 
 async function processarBoletoB(arquivo) {
-  const ok = arquivo.type.startsWith("image/") || arquivo.type==="application/pdf";
-  if (!ok) { toast("Envie JPG/PNG ou PDF.","erro"); return; }
+  if (!arquivo.type.startsWith("image/") && arquivo.type !== "application/pdf" && !arquivo.name?.toLowerCase().endsWith(".pdf")) {
+    toast("Envie JPG, PNG ou PDF do boleto.","erro");
+    return;
+  }
   const lp = document.getElementById("loja-manual").value.split("|");
   E.wizard.loja_id   = lp[0];
   E.wizard.loja_nome = lp[1];
   E.wizard.cnpj_loja = lp[2];
-  const rota = arquivo.type==="application/pdf" ? "/api/codigo-rapido" : "/api/ocr?tipo=Boleto";
   loading("Lendo o Boleto...");
   try {
-    const r    = await enviarImagem(rota, arquivo);
+    const r    = await enviarImagem("/api/ocr?tipo=Boleto", arquivo);
     ocultarLoading();
-    const d    = r.dados || r;
-    const linha      = d.linha_digitavel || r.linha_digitavel || "";
-    const valor      = d.valor           || r.valor           || null;
-    const vencimento = d.vencimento      || r.vencimento      || "";
-    const fornecedor = d.fornecedor      || "";
-    if (linha)      E.wizard.linha      = linha;
-    if (valor)      E.wizard.valor      = valor;
-    if (vencimento) E.wizard.vencimento = vencimento;
-    if (fornecedor) E.wizard.fornecedor = fornecedor;
+    const d    = r.dados || {};
+    if (d.linha_digitavel) E.wizard.linha      = d.linha_digitavel;
+    if (d.valor)           E.wizard.valor      = d.valor;
+    if (d.vencimento)      E.wizard.vencimento = d.vencimento;
+
     const res = document.getElementById("boleto-b-result");
     res.style.display = "block";
-    res.innerHTML = `<div class="nfe-ok" style="background:#fdf5e0;border-color:rgba(154,124,46,.2);border-left-color:var(--env)">
-      <div style="font-size:.88rem;font-weight:700;color:var(--env)">✅ Boleto processado</div>
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--muted);word-break:break-all;margin-top:.25rem">
-        ${esc(linha)||"Código não encontrado — preencha manualmente"}
+    const linha_fmt = d.linha_digitavel
+      ? d.linha_digitavel.replace(/\D/g,"")
+          .replace(/^(\d{5})(\d{5})(\d{5})(\d{6})(\d{5})(\d{6})(\d)(\d{14})$/,
+                   "$1.$2 $3.$4 $5.$6 $7 $8")
+      : "";
+    const dv_status = d.linha_digitavel ? validarLinha(d.linha_digitavel) : null;
+    res.innerHTML = `<div class="boleto-conferencia">
+      <div class="bc-header">
+        <span class="bc-ok">✅ Boleto lido</span>
+        ${dv_status === true  ? '<span class="bc-valido">✔ Código válido</span>' : ""}
+        ${dv_status === false ? '<span class="bc-invalido">⚠ Verifique o código</span>' : ""}
       </div>
-      <div style="font-size:.78rem;color:var(--muted);margin-top:.25rem;display:flex;gap:1rem">
-        ${valor?`<span>💰 ${brl(valor)}</span>`:""}
-        ${vencimento?`<span>🗓 ${vencimento}</span>`:""}
+      <div class="bc-label">Compare com o boleto físico:</div>
+      <div class="bc-codigo">${esc(linha_fmt) || "Código não encontrado — preencha manualmente na próxima etapa"}</div>
+      <div class="bc-meta">
+        ${d.valor      ? `<span class="bc-chip">💰 ${brl(d.valor)}</span>`      : ""}
+        ${d.vencimento ? `<span class="bc-chip">🗓 ${d.vencimento}</span>` : ""}
       </div>
     </div>`;
     document.getElementById("btn-p2b").disabled = false;
@@ -524,6 +575,39 @@ async function processarBoletoB(arquivo) {
 // ═══════════════════════════════════════════════════════════════
 //  CONFERÊNCIA
 // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+//  VALIDACAO DO CODIGO DE BARRAS (Módulo 10)
+// ═══════════════════════════════════════════════════════════════
+function validarLinha(linha) {
+  const dig = linha.replace(/\D/g, "");
+  if (dig.length !== 47) return null;
+
+  function mod10(num) {
+    let soma = 0, mult = 2;
+    for (let i = num.length - 1; i >= 0; i--) {
+      let r = parseInt(num[i]) * mult;
+      soma += Math.floor(r / 10) + (r % 10);
+      mult = mult === 2 ? 1 : 2;
+    }
+    const resto = soma % 10;
+    return resto === 0 ? 0 : 10 - resto;
+  }
+
+  const dv1 = mod10(dig.substring(0, 9));
+  const dv2 = mod10(dig.substring(10, 20));
+  const dv3 = mod10(dig.substring(21, 31));
+
+  return dv1 === parseInt(dig[9]) &&
+         dv2 === parseInt(dig[20]) &&
+         dv3 === parseInt(dig[31]);
+}
+
+function formatarLinha(linha) {
+  const d = linha.replace(/\D/g, "");
+  if (d.length !== 47) return linha;
+  return `${d.slice(0,5)}.${d.slice(5,10)} ${d.slice(10,15)}.${d.slice(15,21)} ${d.slice(21,26)}.${d.slice(26,32)} ${d[32]} ${d.slice(33)}`;
+}
+
 function montarFormConferencia() {
   const w   = E.wizard;
   const div = document.getElementById("form-conf");
@@ -535,32 +619,93 @@ function montarFormConferencia() {
   ).join("");
 
   div.innerHTML = `
-    <div class="fg2">
-      <div class="fg"><label class="lbl">Loja</label>
-        <select class="inp" id="c-loja">${lojaOpts}</select></div>
-      <div class="fg"><label class="lbl">Fornecedor</label>
-        <input class="inp" id="c-forn" value="${ea(w.fornecedor)}" placeholder="Nome do fornecedor"/></div>
+    <div class="sec-label">📄 Nota Fiscal</div>
+
+    <div class="fg">
+      <label class="lbl">Loja</label>
+      <select class="inp" id="c-loja">${lojaOpts}</select>
     </div>
-    <div class="fg2">
-      <div class="fg"><label class="lbl">Valor (R$)</label>
-        <input class="inp" id="c-valor" type="number" step="0.01" min="0.01" value="${w.valor||""}"/></div>
-      <div class="fg"><label class="lbl">Vencimento</label>
-        <input class="inp" id="c-venc" value="${ea(w.vencimento)}" placeholder="DD/MM/AAAA"/></div>
+
+    <div class="fg">
+      <label class="lbl">Fornecedor</label>
+      <input class="inp" id="c-forn" value="${ea(w.fornecedor)}"
+             placeholder="Nome do fornecedor (ex: SAO SALVADOR ALIMENTOS SA)"/>
     </div>
-    <div class="fg"><label class="lbl">Linha Digitável</label>
+
+    <div class="fg2">
+      <div class="fg">
+        <label class="lbl">Número da Nota</label>
+        <input class="inp" id="c-numnota" value="${ea(w.numero_nota)}"
+               placeholder="Ex: 002830937"/>
+      </div>
+      <div class="fg">
+        <label class="lbl">Data de Emissão</label>
+        <input class="inp" id="c-emissao" value="${ea(w.data_emissao)}"
+               placeholder="DD/MM/AAAA"/>
+      </div>
+    </div>
+
+    <div class="fg">
+      <label class="lbl">Chave de Acesso (44 dígitos)</label>
+      <input class="inp mono" id="c-chave" value="${ea(w.chave_nfe)}"
+             style="font-size:.64rem" placeholder="44 dígitos sem espaços"/>
+    </div>
+
+    <div class="sec-label" style="margin-top:.9rem">💳 Boleto</div>
+
+    <div class="fg">
+      <label class="lbl">Linha Digitável</label>
       <input class="inp mono" id="c-linha" value="${ea(w.linha)}"
-             placeholder="00000.00000 00000.000000 00000.000000 0 00000000000000"/>
-      <span class="hint">47 ou 48 dígitos — edite se necessário</span></div>
-    <div class="fg2">
-      <div class="fg"><label class="lbl">Parcela Atual</label>
-        <input class="inp" id="c-patual" type="number" min="1" value="1" oninput="prvParcela()"/></div>
-      <div class="fg"><label class="lbl">Total de Parcelas</label>
-        <input class="inp" id="c-ptotal" type="number" min="1" value="1" oninput="prvParcela()"/></div>
+             placeholder="00000.00000 00000.000000 00000.000000 0 00000000000000"
+             oninput="atualizarValidacaoLinha(this.value)"/>
+      <div id="linha-status" class="linha-status-box">${gerarStatusLinha(w.linha)}</div>
+      <span class="hint">Compare com o boleto físico e corrija se necessário</span>
     </div>
-    <div id="prv-parc" class="hint"></div>
-    ${w.chave_nfe?`<div class="fg"><label class="lbl">Chave NFe</label>
-      <input class="inp mono" style="font-size:.64rem;opacity:.55" value="${ea(w.chave_nfe)}" readonly/></div>`:""}`;
+
+    <div class="fg2">
+      <div class="fg">
+        <label class="lbl">Vencimento</label>
+        <input class="inp" id="c-venc" value="${ea(w.vencimento)}"
+               placeholder="DD/MM/AAAA"/>
+      </div>
+      <div class="fg">
+        <label class="lbl">Valor (R$)</label>
+        <input class="inp" id="c-valor" type="number" step="0.01" min="0.01"
+               value="${w.valor||""}"/>
+      </div>
+    </div>
+
+    <div class="sec-label" style="margin-top:.9rem">📋 Parcelas</div>
+
+    <div class="fg2">
+      <div class="fg">
+        <label class="lbl">Parcela Atual</label>
+        <input class="inp" id="c-patual" type="number" min="1" value="1" oninput="prvParcela()"/>
+      </div>
+      <div class="fg">
+        <label class="lbl">Total de Parcelas</label>
+        <input class="inp" id="c-ptotal" type="number" min="1" value="1" oninput="prvParcela()"/>
+      </div>
+    </div>
+    <div id="prv-parc" class="hint"></div>`;
   prvParcela();
+}
+
+
+function gerarStatusLinha(linha) {
+  if (!linha) return "";
+  const dig = linha.replace(/\D/g, "");
+  if (dig.length !== 47) return `<span class="ls-aviso">⚠ ${dig.length} dígitos (esperado 47)</span>`;
+  const valido = validarLinha(linha);
+  const fmt = formatarLinha(linha);
+  return valido
+    ? `<span class="ls-ok">✔ Código válido — ${fmt}</span>`
+    : `<span class="ls-erro">✗ Dígito verificador inválido — confira o código no boleto físico</span>`;
+}
+
+function atualizarValidacaoLinha(valor) {
+  const el = document.getElementById("linha-status");
+  if (el) el.innerHTML = gerarStatusLinha(valor);
 }
 
 function prvParcela() {
@@ -576,13 +721,16 @@ function prvParcela() {
 //  SALVAR
 // ═══════════════════════════════════════════════════════════════
 async function salvar() {
-  const lp   = document.getElementById("c-loja").value.split("|");
-  const forn = document.getElementById("c-forn").value.trim();
-  const val  = parseFloat(document.getElementById("c-valor").value);
-  const venc = document.getElementById("c-venc").value.trim();
-  const lnh  = document.getElementById("c-linha").value.trim();
-  const pa   = parseInt(document.getElementById("c-patual").value)||1;
-  const pt   = parseInt(document.getElementById("c-ptotal").value)||1;
+  const lp      = document.getElementById("c-loja").value.split("|");
+  const forn    = document.getElementById("c-forn").value.trim();
+  const val     = parseFloat(document.getElementById("c-valor").value);
+  const venc    = document.getElementById("c-venc").value.trim();
+  const lnh     = document.getElementById("c-linha").value.trim();
+  const pa      = parseInt(document.getElementById("c-patual").value)||1;
+  const pt      = parseInt(document.getElementById("c-ptotal").value)||1;
+  const chave   = document.getElementById("c-chave")?.value.trim()   || "";
+  const emissao = document.getElementById("c-emissao")?.value.trim() || "";
+  const numnota = document.getElementById("c-numnota")?.value.trim() || "";
 
   if (!forn)                                return toast("Informe o fornecedor.","erro");
   if (!val||val<=0)                         return toast("Informe um valor válido.","erro");
@@ -600,7 +748,7 @@ async function salvar() {
       );
       if (!snap.empty) {
         toast("⚠️ Boleto duplicado! Esta linha já está cadastrada.","aviso");
-        btn.disabled=false; btn.innerHTML="💾 Salvar no Firebase";
+        btn.disabled=false; btn.innerHTML="💾 Salvar";
         return;
       }
     }
@@ -620,7 +768,9 @@ async function salvar() {
         linha_limpa:     num===pa ? linhaLimpa : "",
         parcela:         `${num}/${pt}`,
         status:          "PENDENTE",
-        chave_nfe:       E.wizard.chave_nfe||"",
+        chave_nfe:       chave,
+        data_emissao:    emissao,
+        numero_nota:     numnota,
         data_criacao:    serverTimestamp(),
       });
       vencData = new Date(vencData.getTime() + 30*86400000);
@@ -632,7 +782,7 @@ async function salvar() {
   } catch (err) {
     toast(`Erro ao salvar: ${err.message}`,"erro");
   } finally {
-    btn.disabled=false; btn.innerHTML="💾 Salvar no Firebase";
+    btn.disabled=false; btn.innerHTML="💾 Salvar";
   }
 }
 
@@ -642,19 +792,29 @@ async function salvar() {
 async function copiarInfo(id) {
   const b = E.boletos.find(x => x.id===id);
   if (!b) return;
-  const info =
-`🏪 LA ROSE - ${b.loja_nome}
-📍 CNPJ: ${b.cnpj_loja}
+  const info = (() => {
+    const linhas = [
+      `🏪 LA ROSE - ${b.loja_nome}`,
+      `📍 CNPJ: ${b.cnpj_loja}`,
+      ``,
+      `📦 FORNECEDOR: ${b.fornecedor}`,
+    ];
+    if (b.numero_nota)  linhas.push(`📝 NOTA: Nº ${b.numero_nota}`);
+    if (b.data_emissao) linhas.push(`📅 EMISSÃO: ${b.data_emissao}`);
+    if (b.chave_nfe)    linhas.push(`🔑 CHAVE: ${b.chave_nfe}`);
+    linhas.push(``);
+    linhas.push(`💳 PARCELA: ${b.parcela}`);
+    linhas.push(`🗓️ VENCIMENTO: ${b.vencimento}`);
+    linhas.push(`💰 VALOR: ${brl(b.valor)}`);
+    linhas.push(``);
+    linhas.push(`✅ Enviado por Márcio Xavier - Gestor La Rose`);
+    return linhas.join("\n");
+  })()
 
-📦 FORNECEDOR: ${b.fornecedor}
-💳 PARCELA: ${b.parcela}
-🗓️ VENCIMENTO: ${b.vencimento}
-💰 VALOR: ${brl(b.valor)}
-
-✅ Enviado por Márcio Xavier - Gestor La Rose`;
+  const ok = await copiarTexto(info);
+  if (!ok) { toast("Erro ao copiar. Tente pelo localhost:8000","erro"); return; }
 
   try {
-    await navigator.clipboard.writeText(info);
     await updateDoc(doc(db,"boletos",id), {status:"ENVIADO"});
     await addDoc(collection(db,"historico"), {
       boleto_id:  id,
@@ -667,10 +827,9 @@ async function copiarInfo(id) {
       valor:      b.valor,
       linha:      b.linha_digitavel,
       template:   info,
-      tipo:       "info",
       enviado_em: serverTimestamp(),
     });
-    toast("📋 Informações copiadas! Status → ENVIADO","sucesso");
+    toast("📋 Informações copiadas!","sucesso");
     await carregarBoletos();
     await carregarHistorico();
   } catch (err) { toast(`Erro: ${err.message}`,"erro"); }
@@ -681,10 +840,9 @@ async function copiarLinha(id) {
   if (!b) return;
   if (!b.linha_digitavel) { toast("Este boleto não tem linha digitável.","aviso"); return; }
   const linhaLimpa = b.linha_digitavel.replace(/\D/g,"");
-  try {
-    await navigator.clipboard.writeText(linhaLimpa);
-    toast("🔢 Linha copiada (só números)!","sucesso");
-  } catch { toast("Erro ao copiar.","erro"); }
+  const ok = await copiarTexto(linhaLimpa);
+  if (ok) toast("🔢 Linha copiada (só números)!","sucesso");
+  else    toast("Erro ao copiar. Tente pelo localhost:8000","erro");
 }
 
 async function marcarPago(id) {
@@ -724,7 +882,7 @@ async function carregarHistorico() {
 
 function historicoVisiveis() {
   return E.historico.filter(h => {
-    if (E.filtroLojaH!=="todas" && h.loja_id!==E.filtroLojaH) return false;
+    if (E.filtroLojaH!=="todas" && h.loja_id!==E.filtroLojaH)           return false;
     if (E.termoHist && !h.fornecedor?.toLowerCase().includes(E.termoHist)) return false;
     return true;
   });
@@ -736,12 +894,16 @@ function renderHistorico() {
   if (!lista.length) {
     grid.innerHTML = `<div class="vazio"><div class="vazio__icon">📋</div>
       <h3>Histórico vazio</h3>
-      <p>Cada vez que você copiar as informações de um boleto o registro fica aqui.</p></div>`;
+      <p>Cada vez que você copiar as informações de um boleto o registro aparece aqui.</p></div>`;
     return;
   }
   grid.innerHTML = lista.map(h => {
-    const data = h.enviado_em?.toDate
-      ? h.enviado_em.toDate().toLocaleString("pt-BR") : "—";
+    const data = h.enviado_em?.toDate ? h.enviado_em.toDate().toLocaleString("pt-BR") : "—";
+    const linha_limpa = (h.linha || "").replace(/\D/g, "");
+    const linha_fmt   = linha_limpa.length === 47
+      ? `${linha_limpa.slice(0,5)}.${linha_limpa.slice(5,10)} ${linha_limpa.slice(10,15)}.${linha_limpa.slice(15,21)} ${linha_limpa.slice(21,26)}.${linha_limpa.slice(26,32)} ${linha_limpa[32]} ${linha_limpa.slice(33)}`
+      : (h.linha || "");
+
     return `
     <div class="card-hist">
       <div class="ch-header">
@@ -751,6 +913,14 @@ function renderHistorico() {
         <span class="ch-data">${data}</span>
       </div>
       <div class="ch-pre">${esc(h.template)}</div>
+      ${h.linha ? `
+      <div class="ch-codigo-wrap">
+        <div class="ch-codigo-label">🔢 Código do boleto</div>
+        <div class="ch-codigo">${esc(linha_fmt)}</div>
+        <button class="ch-copiar-linha" onclick="copiarLinhaHist('${h.id}')">
+          Copiar só o código
+        </button>
+      </div>` : ""}
       <div class="ch-acoes">
         <button class="btn-pri" style="font-size:.78rem;padding:.35rem .9rem"
                 onclick="copiarTemplateHist('${h.id}')">📋 Copiar novamente</button>
@@ -761,20 +931,27 @@ function renderHistorico() {
   }).join("");
 }
 
+async function copiarLinhaHist(id) {
+  const h = E.historico.find(x => x.id===id);
+  if (!h || !h.linha) return;
+  const ok = await copiarTexto(h.linha.replace(/\D/g,""));
+  if (ok) toast("🔢 Código copiado (só números)!","sucesso");
+  else    toast("Erro ao copiar.","erro");
+}
+
 async function copiarTemplateHist(id) {
   const h = E.historico.find(x => x.id===id);
   if (!h) return;
-  try {
-    await navigator.clipboard.writeText(h.template);
-    toast("📋 Template copiado!","sucesso");
-  } catch { toast("Erro ao copiar.","erro"); }
+  const ok = await copiarTexto(h.template);
+  if (ok) toast("📋 Template copiado!","sucesso");
+  else    toast("Erro ao copiar.","erro");
 }
 
 async function deletarHist(id) {
   if (!confirm("Remover este item do histórico?")) return;
   try {
     await deleteDoc(doc(db,"historico",id));
-    toast("🗑 Removido do histórico.","info");
+    toast("🗑 Removido.","info");
     await carregarHistorico();
   } catch (err) { toast(`Erro: ${err.message}`,"erro"); }
 }
@@ -790,14 +967,17 @@ function onDropExp(e) {
 }
 
 async function processarExpresso(arquivo) {
-  const ok = arquivo.type.startsWith("image/") || arquivo.type==="application/pdf";
-  if (!ok) { toast("Envie uma imagem ou PDF.","erro"); return; }
+  if (!arquivo.type.startsWith("image/") && arquivo.type !== "application/pdf" && !arquivo.name?.toLowerCase().endsWith(".pdf")) {
+    toast("Envie JPG, PNG ou PDF.","erro");
+    return;
+  }
   document.getElementById("exp-resultado").style.display = "none";
-  loading("Extraindo código de barras...");
+  loading("Extraindo código...");
   try {
     const r = await enviarImagem("/api/codigo-rapido", arquivo);
     ocultarLoading();
     _exp = {linha:r.linha_digitavel||"", valor:r.valor, vencimento:r.vencimento||""};
+
     const aviso = document.getElementById("exp-aviso");
     if (!r.sucesso || !r.linha_digitavel) {
       aviso.textContent   = r.aviso || "Código não encontrado.";
@@ -805,12 +985,14 @@ async function processarExpresso(arquivo) {
     } else {
       aviso.style.display = "none";
     }
-    set("exp-linha", (r.linha_digitavel||"").replace(/\D/g,"") || "Não encontrado");
+
+    set("exp-linha", (_exp.linha).replace(/\D/g,"") || "Não encontrado");
     const partes = [];
     if (r.valor)      partes.push(`💰 ${brl(r.valor)}`);
     if (r.vencimento) partes.push(`🗓 ${r.vencimento}`);
     if (r.simulado)   partes.push(`⚠️ Simulado`);
     set("exp-meta", partes.join("  ·  "));
+
     const res = document.getElementById("exp-resultado");
     res.style.display = "flex";
     res.style.flexDirection = "column";
@@ -819,10 +1001,9 @@ async function processarExpresso(arquivo) {
 
 async function copiarCodigoRapido() {
   if (!_exp.linha) { toast("Nenhum código para copiar.","aviso"); return; }
-  try {
-    await navigator.clipboard.writeText(_exp.linha.replace(/\D/g,""));
-    toast("🔢 Linha digitável copiada (só números)!","sucesso");
-  } catch { toast("Erro ao copiar.","erro"); }
+  const ok = await copiarTexto(_exp.linha.replace(/\D/g,""));
+  if (ok) toast("🔢 Linha digitável copiada!","sucesso");
+  else    toast("Erro ao copiar.","erro");
 }
 
 async function copiarTemplateRapido() {
@@ -837,10 +1018,9 @@ async function copiarTemplateRapido() {
     ``,
     `✅ Enviado por Márcio Xavier - Gestor La Rose`,
   ].filter(Boolean).join("\n");
-  try {
-    await navigator.clipboard.writeText(txt);
-    toast("📤 Template copiado pro WhatsApp!","sucesso");
-  } catch { toast("Erro ao copiar.","erro"); }
+  const ok = await copiarTexto(txt);
+  if (ok) toast("📤 Template copiado!","sucesso");
+  else    toast("Erro ao copiar.","erro");
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -876,8 +1056,14 @@ function configurarEventos() {
     .addEventListener("change", e => { if (e.target.files[0]) processarBoletoB(e.target.files[0]); });
   document.getElementById("fileExp")
     .addEventListener("change", e => { if (e.target.files[0]) processarExpresso(e.target.files[0]); });
+  // Wizard so fecha pelo botao X — nao fecha ao clicar no overlay
+  // Isso evita fechar acidentalmente ao digitar ou selecionar campos
   document.getElementById("mWizard")
-    .addEventListener("click", e => { if (e.target===document.getElementById("mWizard")) fecharWizard(); });
+    .addEventListener("mousedown", e => {
+      if (e.target === document.getElementById("mWizard")) {
+        e.preventDefault(); // nao fecha, apenas previne foco perdido
+      }
+    });
   document.getElementById("mDia")
     .addEventListener("click", e => { if (e.target===document.getElementById("mDia")) fecharModal("mDia"); });
 
@@ -894,8 +1080,8 @@ function configurarEventos() {
 function registrarSW() {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js")
-      .then(r => console.log("[PWA] SW registrado:", r.scope))
-      .catch(e => console.warn("[PWA] SW falhou:", e));
+      .then(r => console.log("[PWA] SW:", r.scope))
+      .catch(e => console.warn("[PWA]", e));
   }
 }
 
@@ -911,8 +1097,7 @@ const ea   = s => esc(s).replace(/"/g,"&quot;");
 const set  = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
 
 // ═══════════════════════════════════════════════════════════════
-//  EXPOR GLOBAIS — ESSENCIAL para onclick no HTML funcionar
-//  com type="module"
+//  GLOBAIS
 // ═══════════════════════════════════════════════════════════════
 window.mudarAba           = mudarAba;
 window.setLoja            = setLoja;
@@ -937,8 +1122,10 @@ window.copiarLinha        = copiarLinha;
 window.marcarPago         = marcarPago;
 window.remover            = remover;
 window.copiarTemplateHist = copiarTemplateHist;
+window.copiarLinhaHist    = copiarLinhaHist;
 window.deletarHist        = deletarHist;
 window.copiarCodigoRapido = copiarCodigoRapido;
 window.copiarTemplateRapido = copiarTemplateRapido;
-window.calNavegar         = calNavegar;
+window.calNavegar             = calNavegar;
+window.atualizarValidacaoLinha = atualizarValidacaoLinha;
 window.abrirDia           = abrirDia;
